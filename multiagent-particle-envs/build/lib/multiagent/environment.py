@@ -318,13 +318,12 @@ class BatchMultiAgentEnv(gym.Env):
         info_n = {'n': []}
         i = 0
         for env in self.env_batch:
-            obs, reward, done, info = env.step(action_n[i:(i+env.n)], time)
+            obs, reward, done, _ = env.step(action_n[i:(i+env.n)], time)
             i += env.n
             obs_n += obs
             # reward = [r / len(self.env_batch) for r in reward]
             reward_n += reward
             done_n += done
-            info_n['n'] += info
         return obs_n, reward_n, done_n, info_n
 
     def reset(self):

@@ -1,0 +1,5 @@
+name: pic
+channels:
+  - defaults
+prefix: /sailhome/zixianma/anaconda3/envs/pic
+

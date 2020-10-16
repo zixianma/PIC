@@ -1,6 +1,6 @@
 import numpy as np
 import random
-from multiagent.core_vec import World, Agent, Landmark
+from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 
 
@@ -11,66 +11,42 @@ class Scenario(BaseScenario):
         self.sort_obs = sort_obs
         # set any world properties first
         world.dim_c = 2
-        num_agents = 3
-        world.num_adversaries = 0
-        num_landmarks = 2
+        num_agents = 6
+        num_landmarks = 6
         world.collaborative = True
-        self.world_radius = 1
+        self.world_radius = 1.5
         # add agents
         world.agents = [Agent() for i in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True
             agent.silent = True
-            agent.size = 0.06
+            agent.size = 0.15
         # add landmarks
         world.landmarks = [Landmark() for i in range(num_landmarks)]
         for i, landmark in enumerate(world.landmarks):
-            if i < num_landmarks / 2:
-                landmark.name = 'landmark %d' % i
-                landmark.collide = True
-                landmark.movable = True
-                landmark.size = 0.1
-                landmark.initial_mass = 2.0
-            else:
-                landmark.name = 'target %d' % (i - num_landmarks / 2)
-                landmark.collide = False
-                landmark.movable = False
-                landmark.size = 0.05
-                landmark.initial_mass = 4.0
+            landmark.name = 'landmark %d' % i
+            landmark.collide = False
+            landmark.movable = False
         # make initial conditions
-        self.color = {
-                      'green': np.array([0.35, 0.85, 0.35]), 'blue': np.array([0.35, 0.35, 0.85]),'red': np.array([0.85, 0.35, 0.35]),
-                      'light_blue': np.array([0.35, 0.85, 0.85]), 'yellow': np.array([0.85, 0.85, 0.35]), 'black': np.array([0.0, 0.0, 0.0])}
         self.reset_world(world)
         return world
 
     def reset_world(self, world):
         # random properties for agents
         for i, agent in enumerate(world.agents):
-            agent.color = np.array([0.0, 0.0, 0.0])
+            agent.color = np.array([0.35, 0.35, 0.85])
         # random properties for landmarks
-        color_keys = list(self.color.keys())
         for i, landmark in enumerate(world.landmarks):
-            if i < len(world.landmarks) / 2:
-                landmark.color = self.color[color_keys[i]] - 0.1
-            else:
-                landmark.color = self.color[color_keys[int(i / 2)]] + 0.1
+            landmark.color = np.array([0.25, 0.25, 0.25])
         # set random initial states
         for agent in world.agents:
-            agent.state.p_pos = self.np_rnd.uniform(-self.world_radius, +self.world_radius, world.dim_p)
+            agent.state.p_pos = self.np_rnd.uniform(-1.5, +1.5, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
-        num_landmark = int(len(world.landmarks) / 2)
-        for i, landmark in enumerate(world.landmarks[:num_landmark]):
-            landmark.state.p_pos = self.np_rnd.uniform(-(self.world_radius - 0.2) , +self.world_radius - 0.2, world.dim_p)
+        for i, landmark in enumerate(world.landmarks):
+            landmark.state.p_pos = self.np_rnd.uniform(-1.5, +1.5, world.dim_p)
             landmark.state.p_vel = np.zeros(world.dim_p)
-        for i, target in enumerate(world.landmarks[num_landmark:]):
-            target.state.p_pos = self.np_rnd.uniform(-(self.world_radius - 0.2) , +self.world_radius - 0.2, world.dim_p)
-            while np.sqrt(np.sum(np.square(target.state.p_pos - world.landmarks[i].state.p_pos))) < 0.8:
-                target.state.p_pos = self.np_rnd.uniform(-(self.world_radius - 0.2), +self.world_radius - 0.2,
-                                                         world.dim_p)
-            target.state.p_vel = np.zeros(world.dim_p)
 
     def benchmark_data(self, agent, world):
         rew = 0
@@ -88,7 +64,8 @@ class Scenario(BaseScenario):
                 if self.is_collision(a, agent):
                     rew -= 1
                     collisions += 1
-        return [rew, collisions, min_dists, occupied_landmarks]
+        return (rew, collisions, min_dists, occupied_landmarks)
+
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
@@ -99,16 +76,13 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
         rew = 0
-        if agent == world.agents[0]:
-            num_landmark = int(len(world.landmarks) / 2)
-            for l, t in zip(world.landmarks[:num_landmark], world.landmarks[num_landmark:]):
-                dist = np.sqrt(np.sum(np.square(l.state.p_pos - t.state.p_pos)))
-                rew -= 2 * dist
-                dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
-                rew -= 0.1 * min(dists)
-                for a in world.agents:
-                    if self.is_collision(l, a):
-                        rew += 0.1
+        for l in world.landmarks:
+            dists = [np.sqrt(np.sum(np.square(a.state.p_pos - l.state.p_pos))) for a in world.agents]
+            rew -= min(dists)
+        if agent.collide:
+            for a in world.agents:
+                if self.is_collision(a, agent):
+                    rew -= 1
         return rew
 
     def observation(self, agent, world):
@@ -136,7 +110,8 @@ class Scenario(BaseScenario):
         for other in world.agents:
             if other is agent: continue
             other_pos.append(other.state.p_pos - agent.state.p_pos)
-
+        if self.sort_obs:
+            other_pos = sorted(other_pos, key=lambda k: [k[0], k[1]])
         obs = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
         return obs
 

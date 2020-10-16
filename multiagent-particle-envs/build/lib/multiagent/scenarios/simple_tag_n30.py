@@ -13,17 +13,16 @@ class Scenario(BaseScenario):
     def __init__(self):
         obs_path = os.path.dirname(os.path.abspath(__file__))
         obs_path = os.path.dirname(os.path.dirname(obs_path))
-        # scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_n6_train_prey/agents_best.ckpt')
-        # self.scripted_agents = torch.load(scripted_agent_ckpt)['agents']
+        scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_n6_train_prey/agents_best.ckpt')
+        self.scripted_agents = torch.load(scripted_agent_ckpt)['agents']
 
     def make_world(self):
-        world = World(None, self.observation)
+        world = World(self.scripted_agents, self.observation)
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 30
-        num_adversaries = 20
-        world.num_adversaries = num_adversaries
+        num_good_agents = 10
+        num_adversaries = 30
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 10
         self.world_radius = 1
@@ -34,7 +33,7 @@ class Scenario(BaseScenario):
         world.collaborative = True
         # add agents
         world.agents = [Agent() for _ in range(num_adversaries)] \
-                       + [Agent() for _ in range(num_good_agents)]
+                       + [Agent(action_callback) for _ in range(num_good_agents)]
         #world.agents = [Agent(), Agent(), Agent(), Agent(action_callback)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
@@ -86,17 +85,15 @@ class Scenario(BaseScenario):
 
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
-        adversaries = self.adversaries(world)
-        min_cr_dist = min([np.sqrt(np.sum(np.square(
-                    agent.state.p_pos - adv.state.p_pos))) for adv in adversaries])
         if agent.adversary:
             collisions = 0
             for a in self.good_agents(world):
                 if self.is_collision(a, agent):
                     collisions += 1
-            return [collisions, 0]
+            return collisions
         else:
-            return [0, min_cr_dist]
+            return 0
+
 
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos

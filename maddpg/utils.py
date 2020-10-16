@@ -1,4 +1,6 @@
 import csv
+import torch 
+import numpy as np
 
 
 def adjust_learning_rate(optimizer, steps, max_steps, start_decrease_step, init_lr):
@@ -101,3 +103,49 @@ def copy_actor_policy(s_agent, t_agent):
             state_dict[k] = v.cpu()
         t_agent.actor.load_state_dict(state_dict)
         t_agent.actor_params, t_agent.critic_params = None, None
+
+def calculate_alignment_reward(batch, memory, indice, extra_rew, num_agents, num_adversaries):
+    batch_size = len(batch.state)
+    # num_agents = batch.state[0].shape
+    # print(batch_size, num_agents)
+    # if not hasattr(batch, 'reward'):
+    #     batch.reward = np.zeros((batch_size, num_agents))
+    buf_len = len(memory)
+    # print(memory[0].mask.detach().numpy())
+    done = np.asarray([memory[i].mask.detach().numpy()[0] for i in range(buf_len)])
+    # done = torch.reshape(done, (len(buf_len), done[0].shape[1]))
+    # print(memory[0].action.detach().numpy())
+    action_n = int(memory[0].action.size()[1] / num_agents)
+    act = np.asarray([[np.argmax(memory[j].action.detach().numpy()[0][i:i+action_n]) for i in range(num_agents)] for j in range(buf_len)])
+    now = indice % buf_len
+    last = (indice - 1) % buf_len
+    done_mask, act_mask = np.zeros(batch_size), np.zeros(batch_size)
+    
+    reward = np.asarray([batch.reward[i].detach().numpy()[0] for i in range(batch_size)])
+    trues = np.asarray([True] * batch_size)
+    for k in range(num_adversaries + 1, num_agents):
+        # get a mask to encode where the last action is not the end of the episode
+        done_mask = done[last,k] == trues
+        act_mask = act[now, k] == act[last, num_adversaries]
+        combined_mask = done_mask & act_mask
+        reward[:, k][combined_mask] += extra_rew 
+        # for i in range(batch_size):
+        #     done_mask[i] = done[last[i]][0][k] == False
+        #     act_k = np.argmax(act[now[i]][0, k: k+action_n])
+        #     act_ref = np.argmax(act[last[i]][0, num_adversaries:num_adversaries+action_n])
+        #     act_mask[i] = act_k == act_ref
+        #     batch.reward[i][0][k] += extra_rew if done_mask[i] and act_mask[i] else 0.0
+    new_reward = tuple(torch.reshape(torch.Tensor(reward[i, :]), (1, num_agents)) for i in range(batch_size))
+    return batch._replace(reward=new_reward)
+
+def process_fn(batch, memory, indice, **kwargs):
+    params = {}
+    for key, value in kwargs.items():
+        params[key] = value
+    extra_rew = params['extra_rew'] if 'extra_rew' in params else 0.0
+    num_adversaries = params['num_adversaries'] if 'num_adversaries' in params else 0
+    num_agents = params['num_agents'] if 'num_adversaries' in params else 0
+    batch = calculate_alignment_reward(
+            batch, memory, indice, extra_rew, num_agents, num_adversaries)
+    return batch
+

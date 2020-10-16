@@ -68,6 +68,18 @@ class Scenario(BaseScenario):
                 landmark.state.p_pos = self.np_rnd.uniform(-0.9, +0.9, world.dim_p)
                 landmark.state.p_vel = np.zeros(world.dim_p)
 
+
+    # def benchmark_data(self, agent, world):
+    #     # returns data for benchmarking purposes
+    #     if agent.adversary:
+    #         collisions = 0
+    #         for a in self.good_agents(world):
+    #             if self.is_collision(a, agent):
+    #                 collisions += 1
+    #         return collisions
+    #     else:
+    #         return 0
+
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
         adversaries = self.adversaries(world)
@@ -78,9 +90,9 @@ class Scenario(BaseScenario):
             for a in self.good_agents(world):
                 if self.is_collision(a, agent):
                     collisions += 1
-            return [collisions, 0]
+            return collisions, 0
         else:
-            return [0, min_cr_dist]
+            return 0, min_cr_dist
 
 
     def is_collision(self, agent1, agent2):

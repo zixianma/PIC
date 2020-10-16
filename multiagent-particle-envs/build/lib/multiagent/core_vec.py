@@ -3,7 +3,7 @@ import numba
 from numba import jit
 from numba import int32, float32, boolean, float64
 from numba import jitclass, deferred_type
-
+import copy
 
 @jitclass([('p_pos', float64[:]), ('p_vel', float64[:])])
 class EntityState_nb(object):
@@ -150,9 +150,9 @@ class Agent(Entity):
         # action
         self.action = Action()
         # script behavior to execute
-        self.action_callback = None
-        # script behavior to execute
         self.action_callback = action_callback
+        self.id = None
+
 
 # multi-agent world
 class World(object):
@@ -174,13 +174,27 @@ class World(object):
         self.contact_force = 1e+2
         self.contact_margin = 1e-3
         self.use_numba = use_numba
+        self.dist_min = None
         # scripted agents
         self.s_agents = scripted_agents
         self.obs_callback = obs_callback
+        self.force_mask = None
+
+    def get_force_mask(self):
+        n_entities = len(self.entities)
+        mask = np.ones((n_entities, n_entities, 2))
+        for a, entity_a in enumerate(self.entities):
+            for b, entity_b in enumerate(self.entities):
+                if not entity_a.movable or (entity_a is entity_b) or not entity_a.collide or not entity_b.collide:
+                    mask[a, b, :] = 0
+        return mask
+
     # return all entities in the world
     @property
     def entities(self):
+        self.dist_min = 2 * self.agents[0].size
         return self.agents + self.landmarks
+
 
     # return all agents controllable by external policies
     @property
@@ -195,14 +209,14 @@ class World(object):
     # update state of the world
     def step(self):
         # set actions for scripted agents 
-        # for agent in self.scripted_agents:
-        #     agent.action = agent.action_callback(agent, self)
+        for agent in self.scripted_agents:
+            agent.action = agent.action_callback(agent, self)
         # gather forces applied to entities
         p_force = [None] * len(self.entities)
         # apply agent physical controls
         p_force = self.apply_action_force(p_force)
         # apply environment forces
-        p_force = self.apply_environment_force(p_force)
+        p_force = self.apply_environment_force_vec(p_force)
         # integrate physical state
         self.integrate_state(p_force)
         # update agent state
@@ -222,33 +236,23 @@ class World(object):
 
     def apply_environment_force(self, p_force):
         # simple (but inefficient) collision response
-        if self.use_numba:
-            entity_nbs = []
-            for entity_a in self.entities:
-                e = Entity_nb()
-                e.state.p_pos = entity_a.state.p_pos
-                e.state.p_vel = entity_a.state.p_vel
-                e.collide = entity_a.collide
-                e.size = entity_a.size
-                e.movable = entity_a.movable
-                entity_nbs.append(e)
-            for i, f in enumerate(p_force):
-                if f is None:
-                    p_force[i] = np.zeros(2)
-            p_force = apply_environment_force_nb(p_force, entity_nbs, self.contact_margin, self.contact_force)
-
-        else:
-            for a,entity_a in enumerate(self.entities):
-                for b,entity_b in enumerate(self.entities):
-                    if(b <= a): continue
-                    [f_a, f_b] = self.get_collision_force(entity_a, entity_b)
-                    if(f_a is not None):
-                        if(p_force[a] is None): p_force[a] = 0.0
-                        p_force[a] = f_a + p_force[a]
-                    if(f_b is not None):
-                        if(p_force[b] is None): p_force[b] = 0.0
-                        p_force[b] = f_b + p_force[b]
+        for a,entity_a in enumerate(self.entities):
+            for b,entity_b in enumerate(self.entities):
+                if(b <= a): continue
+                [f_a, f_b] = self.get_collision_force(entity_a, entity_b)
+                if(f_a is not None):
+                    if(p_force[a] is None): p_force[a] = 0.0
+                    p_force[a] = f_a + p_force[a] 
+                if(f_b is not None):
+                    if(p_force[b] is None): p_force[b] = 0.0
+                    p_force[b] = f_b + p_force[b]        
         return p_force
+
+
+
+
+
+
 
     # integrate physical state
     def integrate_state(self, p_force):
@@ -292,3 +296,44 @@ class World(object):
         force_a = +force if entity_a.movable else None
         force_b = -force if entity_b.movable else None
         return [force_a, force_b]
+
+    def apply_environment_force_vec(self, p_force):
+
+        if self.force_mask is None:
+            self.force_mask = self.get_force_mask()
+        n_entities = len(self.entities)
+        e_pos = np.array([[e.state.p_pos for e in self.entities]])
+        e_pos1 = e_pos.repeat(n_entities, axis=0)
+        e_pos1 = np.transpose(e_pos1, axes=(1, 0, 2))
+        e_pos2 = e_pos.repeat(n_entities, axis=0)
+        delta_pos = e_pos1 - e_pos2
+        dist = np.sqrt(np.sum(np.square(delta_pos), axis=2)) + np.eye(n_entities)
+        k = self.contact_margin
+        penetration = np.logaddexp(0, -(dist - self.dist_min) / k) * k
+        force = self.contact_force * delta_pos / dist.reshape(n_entities, n_entities, 1) * penetration.reshape(n_entities, n_entities, 1)
+
+        masked_force = force * self.force_mask
+        sum_force = np.sum(masked_force, axis=1)
+
+        for i, f in enumerate(p_force):
+            if f is None: p_force[i] = 0
+            p_force[i] += sum_force[i]
+
+
+        """
+        for a, entity_a in enumerate(self.entities):
+            for b, entity_b in enumerate(self.entities):
+                if (b <= a): continue
+                #[f_a, f_b] = self.get_collision_force(entity_a, entity_b)
+                f_a = force[a, b, :] if entity_a.movable and entity_a is not entity_b and (entity_a.collide and entity_b.collide) else None
+                f_b = -force[a, b, :] if entity_b.movable and entity_a is not entity_b and (entity_a.collide and entity_b.collide) else None
+
+                if (f_a is not None):
+                    if (p_force[a] is None): p_force[a] = 0.0
+                    p_force[a] = f_a + p_force[a]
+                if (f_b is not None):
+                    if (p_force[b] is None): p_force[b] = 0.0
+                    p_force[b] = f_b + p_force[b]
+        """
+
+        return p_force

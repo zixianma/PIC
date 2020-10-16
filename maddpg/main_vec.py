@@ -1,3 +1,5 @@
+import sys
+sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
 import argparse
 import math
 from collections import namedtuple
@@ -20,6 +22,7 @@ import torch.multiprocessing as mp
 from multiprocessing import Queue
 from multiprocessing.sharedctypes import Value
 import sys
+from torch.utils.tensorboard import SummaryWriter
 
 parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
 parser.add_argument('--scenario', required=True,
@@ -43,7 +46,7 @@ parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                     help='batch size (default: 128)')
 parser.add_argument('--num_steps', type=int, default=25, metavar='N',
                     help='max episode length (default: 1000)')
-parser.add_argument('--num_episodes', type=int, default=60000, metavar='N',
+parser.add_argument('--num_episodes', type=int, default=100000, metavar='N',
                     help='number of episodes (default: 1000)')
 parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
                     help='number of episodes (default: 128)')
@@ -78,6 +81,11 @@ parser.add_argument('--steps_per_critic_update', type=int, default=100)
 parser.add_argument('--target_update_mode', default='soft', help='soft | hard | episodic')
 parser.add_argument('--cuda', default=False, action='store_true')
 parser.add_argument('--eval_freq', type=int, default=1000)
+parser.add_argument('--benchmark', type=bool, default=True)
+parser.add_argument('--logdir', type=str, default='./ckpt_plot')
+
+# alignment policy specific 
+parser.add_argument('--extra_rew', type=float, default=0.0)
 args = parser.parse_args()
 if args.exp_name is None:
     args.exp_name = args.scenario + '_' + args.critic_type + '_' + args.target_update_mode + '_hiddensize' \
@@ -92,14 +100,14 @@ torch.set_num_threads(1)
 device = torch.device("cuda:0" if torch.cuda.is_available() and args.cuda else "cpu")
 
 
-env = make_env(args.scenario, None)
+env = make_env(args.scenario, None, benchmark=args.benchmark)
 n_agents = env.n
 env.seed(args.seed)
 random.seed(args.seed)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
-num_adversary = 0
-
+num_adversaries = env.world.num_adversaries
+extra_rew = args.extra_rew
 
 n_actions = n_actions(env.action_space)
 obs_dims = [env.observation_space[i].shape[0] for i in range(n_agents)]
@@ -143,6 +151,7 @@ else:
     main_agents = agents0
 
 rewards = []
+benchmarks = []
 total_numsteps = 0
 updates = 0
 exp_save_dir = os.path.join(args.save_dir, args.exp_name)
@@ -151,6 +160,7 @@ best_eval_reward, best_good_eval_reward, best_adversary_eval_reward = -100000000
 start_time = time.time()
 copy_actor_policy(agent, eval_agent)
 torch.save({'agents': eval_agent}, os.path.join(exp_save_dir, 'agents_best.ckpt'))
+writer = SummaryWriter(exp_save_dir)
 # for mp test
 
 test_q = Queue()
@@ -161,13 +171,19 @@ p.start()
 for i_episode in range(args.num_episodes):
     obs_n = env.reset()
     episode_reward = 0
+    agents_benchmark = [[] for _ in range(n_agents)]
     episode_step = 0
     agents_rew = [[] for _ in range(n_agents)]
+    if 'simple_tag' in args.scenario:
+        episode_benchmark = [0 for _ in range(2)]
+    elif 'simple_coop_push' in args.scenario:
+        episode_benchmark = [0 for _ in range(3)]
     while True:
         # action_n_1 = [agent.select_action(torch.Tensor([obs]).to(device), action_noise=True, param_noise=False).squeeze().cpu().numpy() for obs in obs_n]
         action_n = agent.select_action(torch.Tensor(obs_n).to(device), action_noise=True,
                                        param_noise=False).squeeze().cpu().numpy()
         next_obs_n, reward_n, done_n, info = env.step(action_n)
+        benchmark_n = np.asarray(info['n'])
         total_numsteps += 1
         episode_step += 1
         terminal = (episode_step >= args.num_steps)
@@ -181,38 +197,71 @@ for i_episode in range(args.num_episodes):
         for i, r in enumerate(reward_n):
             agents_rew[i].append(r)
         episode_reward += np.sum(reward_n)
+        
+        if "simple_tag" in args.scenario:
+            for i, b in enumerate(episode_benchmark):
+                if i == 0: # collisions for adversaries only
+                    episode_benchmark[i] += sum(benchmark_n[:num_adversaries, i])
+                if i == 1: #
+                    episode_benchmark[i] += sum(benchmark_n[num_adversaries:, i])
+        elif 'simple_coop_push' in args.scenario:
+            for i, b in enumerate(episode_benchmark[1:]):
+                episode_benchmark[i] += sum(benchmark_n[:, i])
+
         obs_n = next_obs_n
         n_update_iter = 5
+
         if len(memory) > args.batch_size:
             if total_numsteps % args.steps_per_actor_update == 0:
                 for _ in range(args.updates_per_step):
-                    transitions = memory.sample(args.batch_size)
+                    # transitions = memory.sample(args.batch_size)
+                    transitions, indice = memory.sample(args.batch_size)
                     batch = Transition(*zip(*transitions))
+                    batch = process_fn(batch, memory.memory, indice, extra_rew=extra_rew, num_agents=n_agents, num_adversaries=num_adversaries)
                     policy_loss = agent.update_actor_parameters(batch, i, args.shuffle)
                     updates += 1
+                writer.add_scalar('policy_loss/train', policy_loss, i_episode)
                 print('episode {}, p loss {}, p_lr {}'.
                       format(i_episode, policy_loss, agent.actor_lr))
             if total_numsteps % args.steps_per_critic_update == 0:
                 value_losses = []
                 for _ in range(args.critic_updates_per_step):
-                    transitions = memory.sample(args.batch_size)
+                    # transitions = memory.sample(args.batch_size)
+                    transitions, indice = memory.sample(args.batch_size)
                     batch = Transition(*zip(*transitions))
+                    batch = process_fn(batch, memory.memory, indice,extra_rew=extra_rew, num_agents=n_agents,num_adversaries=num_adversaries)
                     value_losses.append(agent.update_critic_parameters(batch, i, args.shuffle))
                     updates += 1
                 value_loss = np.mean(value_losses)
+                writer.add_scalar('value_loss/train', value_loss, i_episode)
                 print('episode {}, q loss {},  q_lr {}'.
                       format(i_episode, value_loss, agent.critic_optim.param_groups[0]['lr']))
                 if args.target_update_mode == 'episodic':
                     hard_update(agent.critic_target, agent.critic)
+        # if self.benchmark_logger:
+        #     for k, v in self.benchmark_logger.log().items():
+        #         output[k] = v
 
         if done_n[0] or terminal:
-            print('train epidoe reward', episode_reward)
+            print('train episode reward:', episode_reward)
+            for i, b in enumerate(episode_benchmark):
+                print('train episode benchmark %d: %.2f' % (i, b))
             episode_step = 0
             break
     if not args.fixed_lr:
         agent.adjust_lr(i_episode)
-    # writer.add_scalar('reward/train', episode_reward, i_episode)
+
+    writer.add_scalar('reward/train', episode_reward, i_episode)
+    if "simple_tag" in args.scenario:
+        writer.add_scalar('collision/train', episode_benchmark[0], i_episode)
+        writer.add_scalar('dist/train', episode_benchmark[1], i_episode)
+    elif 'simple_coop_push':
+        writer.add_scalar('collision/train', episode_benchmark[0], i_episode)
+        writer.add_scalar('min_dist/train', episode_benchmark[1], i_episode)
+        writer.add_scalar('occupied_landmark/train', episode_benchmark[1], i_episode)
+    
     rewards.append(episode_reward)
+    benchmarks.append(episode_benchmark)
     # if (i_episode + 1) % 1000 == 0 or ((i_episode + 1) >= args.num_episodes - 50 and (i_episode + 1) % 4 == 0):
     if (i_episode + 1) % args.eval_freq == 0:
         tr_log = {'num_adversary': 0,

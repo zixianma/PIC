@@ -18,17 +18,25 @@ def temp_seed(seed):
 
 
 def eval_model_q(test_q, done_training, args):
-    plot = {'good_rewards': [], 'adversary_rewards': [], 'rewards': [], 'steps': [], 'q_loss': [], 'gcn_q_loss': [],
+    if 'simple_tag' in args.scenario:
+        plot = {'good_rewards': [], 'adversary_rewards': [], 'rewards': [], 'collisions': [], 'dists': [], 'steps': [], 'q_loss': [], 'gcn_q_loss': [],
+            'p_loss': [], 'final': [], 'abs': []}
+    else:
+        plot = {'good_rewards': [], 'adversary_rewards': [], 'rewards': [], 'steps': [], 'q_loss': [], 'gcn_q_loss': [],
             'p_loss': [], 'final': [], 'abs': []}
     best_eval_reward = -100000000
     while True:
         if not test_q.empty():
             print('=================== start eval ===================')
-            eval_env = make_env(args.scenario, args)
+            eval_env = make_env(args.scenario, args, benchmark=True)
             eval_env.seed(args.seed + 10)
             eval_rewards = []
             good_eval_rewards = []
+            #if 'simple_tag' in args.scenario:
+            eval_collisions = []
+            eval_dists = []
             agent, tr_log = test_q.get()
+            num_adversaries = eval_env.world.num_adversaries
             with temp_seed(args.seed):
                 for n_eval in range(args.num_eval_runs):
                     obs_n = eval_env.reset()
@@ -36,11 +44,25 @@ def eval_model_q(test_q, done_training, args):
                     episode_step = 0
                     n_agents = eval_env.n
                     agents_rew = [[] for _ in range(n_agents)]
+                    if 'simple_tag' in args.scenario:
+                        episode_benchmark = [0 for _ in range(2)]
+                    elif 'simple_coop_push' in args.scenario:
+                        episode_benchmark = [0 for _ in range(3)]
                     while True:
                         action_n = agent.select_action(torch.Tensor(obs_n), action_noise=True,
                                                        param_noise=False).squeeze().cpu().numpy()
-                        next_obs_n, reward_n, done_n, _ = eval_env.step(action_n)
-                        episode_step += 1
+                        next_obs_n, reward_n, done_n, info_n = eval_env.step(action_n)
+                        benchmark_n = np.asarray(info_n['n'])
+                        if "simple_tag" in args.scenario:
+                            for i, b in enumerate(episode_benchmark):
+                                if i == 0: # collisions for adversaries only
+                                    episode_benchmark[i] += sum(benchmark_n[:num_adversaries, i])
+                                if i == 1: #
+                                    episode_benchmark[i] += sum(benchmark_n[num_adversaries:, i])
+                        elif 'simple_coop_push' in args.scenario:
+                                for i, b in enumerate(episode_benchmark[1:]):
+                                    episode_benchmark[i] += sum(benchmark_n[:, i])
+                                    episode_step += 1
                         terminal = (episode_step >= args.num_steps)
                         episode_reward += np.sum(reward_n)
                         for i, r in enumerate(reward_n):
@@ -51,6 +73,8 @@ def eval_model_q(test_q, done_training, args):
                             agents_rew = [np.sum(rew) for rew in agents_rew]
                             good_reward = np.sum(agents_rew)
                             good_eval_rewards.append(good_reward)
+                            eval_collisions.append(episode_benchmark[0])
+                            eval_dists.append(episode_benchmark[1])
                             if n_eval % 100 == 0:
                                 print('test reward', episode_reward)
                             break
@@ -59,6 +83,9 @@ def eval_model_q(test_q, done_training, args):
                     torch.save({'agents': agent}, os.path.join(tr_log['exp_save_dir'], 'agents_best.ckpt'))
 
                 plot['rewards'].append(np.mean(eval_rewards))
+                if 'simple_tag' in args.scenario:
+                    plot['collisions'].append(np.mean(eval_collisions))
+                    plot['dists'].append(np.mean(eval_dists))
                 plot['steps'].append(tr_log['total_numsteps'])
                 plot['q_loss'].append(tr_log['value_loss'])
                 plot['p_loss'].append(tr_log['policy_loss'])
@@ -67,11 +94,10 @@ def eval_model_q(test_q, done_training, args):
                     "Episode: {}, total numsteps: {}, {} eval runs, total time: {} s".
                         format(tr_log['i_episode'], tr_log['total_numsteps'], args.num_eval_runs,
                                time.time() - tr_log['start_time']))
-                print("GOOD reward: avg {} std {}, average reward: {}, best reward {}".format(np.mean(eval_rewards),
-                                                                                              np.std(eval_rewards),
-                                                                                              np.mean(plot['rewards'][
-                                                                                                      -10:]),
-                                                                                              best_eval_reward))
+                print("GOOD reward: avg {} std {}, average reward: {}, best reward {}, \
+                    average collision {}, average dist {}".format(np.mean(eval_rewards),
+                    np.std(eval_rewards),np.mean(plot['rewards'][-10:]),best_eval_reward,
+                    np.mean(eval_collisions),np.mean(eval_dists)))
                 plot['final'].append(np.mean(plot['rewards'][-10:]))
                 plot['abs'].append(best_eval_reward)
                 dict2csv(plot, os.path.join(tr_log['exp_save_dir'], 'train_curve.csv'))

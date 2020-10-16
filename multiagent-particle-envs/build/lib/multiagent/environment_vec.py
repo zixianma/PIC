@@ -84,9 +84,10 @@ class MultiAgentEnv(gym.Env):
         done_n = []
         info_n = {'n': []}
         self.agents = self.world.policy_agents
+        n_action = self.action_space[0].n
         # set action for each agent
         for i, agent in enumerate(self.agents):
-            self._set_action(action_n[i], agent, self.action_space[i])
+            self._set_action(action_n[n_action * i: n_action * (i+1)], agent, self.action_space[i])
         # advance world state
         self.world.step()
         # record observation for each agent
@@ -102,6 +103,10 @@ class MultiAgentEnv(gym.Env):
         if self.shared_reward:
             reward_n = [reward] * self.n
 
+        obs_n = np.array(obs_n).flatten()
+        reward_n = np.array(reward_n).flatten()
+        done_n = np.array(done_n).flatten()
+
         return obs_n, reward_n, done_n, info_n
 
     def reset(self):
@@ -114,7 +119,8 @@ class MultiAgentEnv(gym.Env):
         self.agents = self.world.policy_agents
         for agent in self.agents:
             obs_n.append(self._get_obs(agent))
-        return obs_n
+        obs = np.array(obs_n).flatten()
+        return obs
 
     # get info used for benchmarking
     def _get_info(self, agent):
@@ -222,28 +228,28 @@ class MultiAgentEnv(gym.Env):
                 self.viewers[i] = rendering.Viewer(700,700)
 
         # create rendering geometry
-        #if self.render_geoms is None:
-        # import rendering only if we need it (and don't import for headless machines)
-        #from gym.envs.classic_control import rendering
-        from multiagent import rendering
-        self.render_geoms = []
-        self.render_geoms_xform = []
-        for entity in self.world.entities:
-            geom = rendering.make_circle(entity.size)
-            xform = rendering.Transform()
-            if 'agent' in entity.name:
-                geom.set_color(*entity.color, alpha=0.5)
-            else:
-                geom.set_color(*entity.color)
-            geom.add_attr(xform)
-            self.render_geoms.append(geom)
-            self.render_geoms_xform.append(xform)
+        if self.render_geoms is None:
+            # import rendering only if we need it (and don't import for headless machines)
+            #from gym.envs.classic_control import rendering
+            from multiagent import rendering
+            self.render_geoms = []
+            self.render_geoms_xform = []
+            for entity in self.world.entities:
+                geom = rendering.make_circle(entity.size)
+                xform = rendering.Transform()
+                if 'agent' in entity.name:
+                    geom.set_color(*entity.color, alpha=0.5)
+                else:
+                    geom.set_color(*entity.color)
+                geom.add_attr(xform)
+                self.render_geoms.append(geom)
+                self.render_geoms_xform.append(xform)
 
-        # add geoms to viewer
-        for viewer in self.viewers:
-            viewer.geoms = []
-            for geom in self.render_geoms:
-                viewer.add_geom(geom)
+            # add geoms to viewer
+            for viewer in self.viewers:
+                viewer.geoms = []
+                for geom in self.render_geoms:
+                    viewer.add_geom(geom)
 
         results = []
         for i in range(len(self.viewers)):
@@ -318,13 +324,12 @@ class BatchMultiAgentEnv(gym.Env):
         info_n = {'n': []}
         i = 0
         for env in self.env_batch:
-            obs, reward, done, info = env.step(action_n[i:(i+env.n)], time)
+            obs, reward, done, _ = env.step(action_n[i:(i+env.n)], time)
             i += env.n
             obs_n += obs
             # reward = [r / len(self.env_batch) for r in reward]
             reward_n += reward
             done_n += done
-            info_n['n'] += info
         return obs_n, reward_n, done_n, info_n
 
     def reset(self):
