@@ -21,8 +21,8 @@ class Scenario(BaseScenario):
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 15
-        num_adversaries = 10
+        num_good_agents = 90
+        num_adversaries = 60
         world.num_adversaries = num_adversaries
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 2

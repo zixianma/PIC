@@ -3,6 +3,7 @@ from multiagent.core import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 import torch
 import os
+import math 
 
 from multiagent.common import action_callback
 
@@ -21,14 +22,17 @@ class Scenario(BaseScenario):
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 15
-        num_adversaries = 10
+        num_good_agents = 90
+        num_adversaries = 60
         world.num_adversaries = num_adversaries
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 2
         self.world_radius = 1
+        # for partial observation
+        world.max_obs_dist = math.sqrt(2) / 2
         # add agents
-        world.agents = [Agent() for _ in range(num_agents)]
+        world.agents = [Agent(), Agent(), Agent(), Agent(), Agent()]
+        # world.agents = [Agent(), Agent(), Agent(), Agent(action_callback)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True
@@ -157,11 +161,18 @@ class Scenario(BaseScenario):
             other_vel = []
             for other in world.agents:
                 if other is agent: continue
-                comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
+                delta_pos = agent.state.p_pos - other.state.p_pos
+                dist = np.sqrt(np.sum(np.square(delta_pos)))
+                if dist > world.max_obs_dist:
+                    # comm.append(other.state.c)
+                    other_pos.append([0,0])
+                    other_vel.append([0,0])
+                else:
+                    comm.append(other.state.c)
+                    other_pos.append(other.state.p_pos - agent.state.p_pos)
+                    # if not other.adversary:
+                    #     other_vel.append(other.state.p_vel)
+                    other_vel.append(other.state.p_vel)
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
         else:
             # get positions of all entities in this agent's reference frame
@@ -176,11 +187,18 @@ class Scenario(BaseScenario):
             other_vel = []
             for other in world.agents:
                 if other is agent: continue
-                comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
+                delta_pos = agent.state.p_pos - other.state.p_pos
+                dist = np.sqrt(np.sum(np.square(delta_pos)))
+                if dist > world.max_obs_dist:
+                    # comm.append(other.state.c)
+                    other_pos.append([0,0])
+                    other_vel.append([0,0])
+                else:
+                    comm.append(other.state.c)
+                    other_pos.append(other.state.p_pos - agent.state.p_pos)
+                    # if not other.adversary:
+                    #     other_vel.append(other.state.p_vel)
+                    other_vel.append(other.state.p_vel)
 
             #other_pos = sorted(other_pos, key=lambda k: [k[0], k[1]])
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)

@@ -11,7 +11,7 @@ class Scenario(BaseScenario):
         self.sort_obs = sort_obs
         # set any world properties first
         world.dim_c = 2
-        num_agents = 15
+        num_agents = 90
         world.num_adversaries = 0
         num_landmarks = 2
         world.collaborative = True
