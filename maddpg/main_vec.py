@@ -199,13 +199,12 @@ for i_episode in range(args.num_episodes):
         episode_reward += np.sum(reward_n)
         
         if "simple_tag" in args.scenario:
-            for i, b in enumerate(episode_benchmark):
-                if i == 0: # collisions for adversaries only
-                    episode_benchmark[i] += sum(benchmark_n[:num_adversaries, i])
-                if i == 1: #
-                    episode_benchmark[i] += sum(benchmark_n[num_adversaries:, i])
+            # collisions for adversaries only
+            episode_benchmark[0] += sum(benchmark_n[:num_adversaries, 0])
+            # min distance for good agents only 
+            episode_benchmark[1] += sum(benchmark_n[num_adversaries:, 1])
         elif 'simple_coop_push' in args.scenario:
-            for i, b in enumerate(episode_benchmark[1:]):
+            for i in range(len(episode_benchmark)):
                 episode_benchmark[i] += sum(benchmark_n[:, i])
 
         obs_n = next_obs_n
@@ -238,9 +237,6 @@ for i_episode in range(args.num_episodes):
                       format(i_episode, value_loss, agent.critic_optim.param_groups[0]['lr']))
                 if args.target_update_mode == 'episodic':
                     hard_update(agent.critic_target, agent.critic)
-        # if self.benchmark_logger:
-        #     for k, v in self.benchmark_logger.log().items():
-        #         output[k] = v
 
         if done_n[0] or terminal:
             print('train episode reward:', episode_reward)
@@ -258,7 +254,7 @@ for i_episode in range(args.num_episodes):
     elif 'simple_coop_push':
         writer.add_scalar('collision/train', episode_benchmark[0], i_episode)
         writer.add_scalar('min_dist/train', episode_benchmark[1], i_episode)
-        writer.add_scalar('occupied_landmark/train', episode_benchmark[1], i_episode)
+        writer.add_scalar('occupied_landmark/train', episode_benchmark[2], i_episode)
     
     rewards.append(episode_reward)
     benchmarks.append(episode_benchmark)

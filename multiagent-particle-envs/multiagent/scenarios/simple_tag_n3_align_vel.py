@@ -28,7 +28,7 @@ class Scenario(BaseScenario):
         num_landmarks = 2
         self.world_radius = 1
         # add agents
-        world.agents = [Agent(), Agent(), Agent(), Agent(), Agent()]
+        world.agents = [Agent() for _ in range(num_agents)]
         # world.agents = [Agent(), Agent(), Agent(), Agent(action_callback)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
@@ -82,7 +82,6 @@ class Scenario(BaseScenario):
                     agent.state.p_pos - adv.state.p_pos))) for adv in adversaries])
             return [0, min_cr_dist]
 
-
     def is_collision(self, agent1, agent2):
         delta_pos = agent1.state.p_pos - agent2.state.p_pos
         dist = np.sqrt(np.sum(np.square(delta_pos)))
@@ -108,6 +107,7 @@ class Scenario(BaseScenario):
         rew = 0
         shape = False
         adversaries = self.adversaries(world)
+        good_agents = self.good_agents(world)
         if shape:  # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
                 rew += 0.1 * np.sqrt(np.sum(np.square(agent.state.p_pos - adv.state.p_pos)))
@@ -115,6 +115,12 @@ class Scenario(BaseScenario):
             for a in adversaries:
                 if self.is_collision(a, agent):
                     rew -= 10
+
+        # extra reward for alignment to leader in the group
+        leader = good_agents[0]
+        if agent != leader:
+            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+            rew += extra_rew
 
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries
         def bound(x):
@@ -143,6 +149,12 @@ class Scenario(BaseScenario):
                 for adv in adversaries:
                     if self.is_collision(ag, adv):
                         rew += 10
+
+        leader = adversaries[0]
+        if agent != leader:
+            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+            rew += extra_rew
+
         return rew
 
     def observation(self, agent, world):

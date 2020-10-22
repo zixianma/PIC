@@ -129,12 +129,6 @@ def calculate_alignment_reward(batch, memory, indice, extra_rew, num_agents, num
         act_mask = act[now, k] == act[last, num_adversaries]
         combined_mask = done_mask & act_mask
         reward[:, k][combined_mask] += extra_rew 
-        # for i in range(batch_size):
-        #     done_mask[i] = done[last[i]][0][k] == False
-        #     act_k = np.argmax(act[now[i]][0, k: k+action_n])
-        #     act_ref = np.argmax(act[last[i]][0, num_adversaries:num_adversaries+action_n])
-        #     act_mask[i] = act_k == act_ref
-        #     batch.reward[i][0][k] += extra_rew if done_mask[i] and act_mask[i] else 0.0
     new_reward = tuple(torch.reshape(torch.Tensor(reward[i, :]), (1, num_agents)) for i in range(batch_size))
     return batch._replace(reward=new_reward)
 
