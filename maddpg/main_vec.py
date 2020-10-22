@@ -1,5 +1,9 @@
 import sys
-sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
+import json
+# local 
+# sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
+# server
+sys.path.append('/sailhome/zixianma/PIC/multiagent-particle-envs')
 import argparse
 import math
 from collections import namedtuple
@@ -63,7 +67,11 @@ parser.add_argument('--critic_lr', type=float, default=1e-2,
 parser.add_argument('--fixed_lr', default=False, action='store_true')
 parser.add_argument('--num_eval_runs', type=int, default=1000, help='number of runs per evaluation (default: 5)')
 parser.add_argument("--exp_name", type=str, help="name of the experiment")
-parser.add_argument("--save_dir", type=str, default="./ckpt_plot",
+# local 
+# parser.add_argument("--save_dir", type=str, default="./ckpt_plot",
+#                     help="directory in which training state and model should be saved")
+# server
+parser.add_argument("--save_dir", type=str, default=" /scr/zixianma/pic",
                     help="directory in which training state and model should be saved")
 parser.add_argument('--static_env', default=False, action='store_true')
 parser.add_argument('--critic_type', type=str, default='mlp', help="Supports [mlp, gcn_mean, gcn_max]")
@@ -82,7 +90,6 @@ parser.add_argument('--target_update_mode', default='soft', help='soft | hard | 
 parser.add_argument('--cuda', default=False, action='store_true')
 parser.add_argument('--eval_freq', type=int, default=1000)
 parser.add_argument('--benchmark', type=bool, default=True)
-parser.add_argument('--logdir', type=str, default='./ckpt_plot')
 
 # alignment policy specific 
 parser.add_argument('--extra_rew', type=float, default=0.0)
@@ -160,6 +167,9 @@ best_eval_reward, best_good_eval_reward, best_adversary_eval_reward = -100000000
 start_time = time.time()
 copy_actor_policy(agent, eval_agent)
 torch.save({'agents': eval_agent}, os.path.join(exp_save_dir, 'agents_best.ckpt'))
+ # log
+with open(os.path.join(exp_save_dir, 'args.json'), 'w') as args_file:
+    json.dump(args.__dict__, args_file)
 writer = SummaryWriter(exp_save_dir)
 # for mp test
 
