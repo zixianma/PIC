@@ -1,20 +1,18 @@
 import numpy as np
-from multiagent.core import World, Agent, Landmark
+from multiagent.core_vec import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 import torch
 import os
-import math 
 
 from multiagent.common import action_callback
-
 
 
 class Scenario(BaseScenario):
     def __init__(self):
         obs_path = os.path.dirname(os.path.abspath(__file__))
         obs_path = os.path.dirname(os.path.dirname(obs_path))
-        # scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_v5_al0a10_4/agents.ckpt')
-        # self.scripted_agents = torch.load(scripted_agent_ckpt)['agents'][3]
+        # scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_n6_train_prey/agents_best.ckpt')
+        # self.scripted_agents = torch.load(scripted_agent_ckpt)['agents']
 
     def make_world(self):
         # world = World(self.scripted_agents, self.observation)
@@ -22,17 +20,18 @@ class Scenario(BaseScenario):
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 6
-        num_adversaries = 4
-        world.num_adversaries = num_adversaries
+        num_good_agents = 2
+        num_adversaries = 6
         num_agents = num_adversaries + num_good_agents
-        num_landmarks = 2
-        self.world_radius = 1
+        num_landmarks = 3
+        self.world_radius = 1.5
+        world.collaborative = True
         # for partial observation
         world.max_obs_dist = math.sqrt(2) / 2
         # add agents
-        world.agents = [Agent(), Agent(), Agent(), Agent(), Agent()]
-        # world.agents = [Agent(), Agent(), Agent(), Agent(action_callback)]
+        # world.agents = [Agent() for _ in range(num_adversaries)] \
+        #                + [Agent(action_callback) for _ in range(num_good_agents)]
+        world.agents = [Agent() for _ in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True
@@ -51,6 +50,7 @@ class Scenario(BaseScenario):
             landmark.size = 0.2
             landmark.boundary = False
         # make initial conditions
+        self.collide_th = self.good_agents(world)[0].size + self.adversaries(world)[0].size
         self.reset_world(world)
         return world
 
@@ -63,19 +63,27 @@ class Scenario(BaseScenario):
             landmark.color = np.array([0.25, 0.25, 0.25])
         # set random initial states
         for agent in world.agents:
-            agent.state.p_pos = self.np_rnd.uniform(-1, +1, world.dim_p)
+            agent.state.p_pos = self.np_rnd.uniform(-self.world_radius, +self.world_radius, world.dim_p)
             agent.state.p_vel = np.zeros(world.dim_p)
             agent.state.c = np.zeros(world.dim_c)
         for i, landmark in enumerate(world.landmarks):
             if not landmark.boundary:
-                landmark.state.p_pos = self.np_rnd.uniform(-0.9, +0.9, world.dim_p)
+                landmark.state.p_pos = self.np_rnd.uniform(-(self.world_radius - 0.1), self.world_radius  - 0.1, world.dim_p)
                 landmark.state.p_vel = np.zeros(world.dim_p)
 
+
+    # def benchmark_data(self, agent, world):
+    #     # returns data for benchmarking purposes
+    #     if agent.adversary:
+    #         collisions = 0
+    #         for a in self.good_agents(world):
+    #             if self.is_collision(a, agent):
+    #                 collisions += 1
+    #         return collisions
+    #     else:
+    #         return 0
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
-        adversaries = self.adversaries(world)
-        min_cr_dist = min([np.sqrt(np.sum(np.square(
-                    agent.state.p_pos - adv.state.p_pos))) for adv in adversaries])
         if agent.adversary:
             collisions = 0
             for a in self.good_agents(world):
@@ -83,6 +91,9 @@ class Scenario(BaseScenario):
                     collisions += 1
             return [collisions, 0]
         else:
+            adversaries = self.adversaries(world)
+            min_cr_dist = min([np.sqrt(np.sum(np.square(
+                    agent.state.p_pos - adv.state.p_pos))) for adv in adversaries])
             return [0, min_cr_dist]
 
 
@@ -134,18 +145,38 @@ class Scenario(BaseScenario):
 
     def adversary_reward(self, agent, world):
         # Adversaries are rewarded for collisions with agents
-        rew = 0
-        shape = True
-        agents = self.good_agents(world)
-        adversaries = self.adversaries(world)
-        if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
-            for adv in adversaries:
-                rew -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
-        if agent.collide:
-            for ag in agents:
+        rew, rew1 = 0, 0
+        n_col, n_collide = 0, 0
+        if agent == world.agents[0]:
+            agents = self.good_agents(world)
+            adversaries = self.adversaries(world)
+
+            adv_pos = np.array([[adv.state.p_pos for adv in adversaries]]).repeat(len(agents), axis=0)
+            a_pos = np.array([[a.state.p_pos for a in agents]])
+            a_pos1 = a_pos.repeat(len(adversaries), axis=0)
+            a_pos1 = np.transpose(a_pos1, axes=(1, 0, 2))
+            dist = np.sqrt(np.sum(np.square(adv_pos - a_pos1), axis=2))
+            rew = np.min(dist, axis=0)
+            rew = -0.1 * np.sum(rew)
+            if agent.collide:
+                n_collide = (dist < self.collide_th).sum()
+            rew += 10 * n_collide
+
+
+
+            """
+            if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
                 for adv in adversaries:
-                    if self.is_collision(ag, adv):
-                        rew += 10
+                    rew1 -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
+
+            if agent.collide:
+                n_col = 0
+                for ag in agents:
+                    for adv in adversaries:
+                        if self.is_collision(ag, adv):
+                            n_col += 1
+                            rew1 += 10
+            """
         return rew
 
     def observation(self, agent, world):

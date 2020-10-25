@@ -7,7 +7,6 @@ import os
 from multiagent.common import action_callback
 
 
-
 class Scenario(BaseScenario):
     def __init__(self):
         obs_path = os.path.dirname(os.path.abspath(__file__))
@@ -21,8 +20,8 @@ class Scenario(BaseScenario):
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 3
-        num_adversaries = 2
+        num_good_agents = 1
+        num_adversaries = 3
         world.num_adversaries = num_adversaries
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 2

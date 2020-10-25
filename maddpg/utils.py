@@ -137,6 +137,7 @@ def process_fn(batch, memory, indice, **kwargs):
     for key, value in kwargs.items():
         params[key] = value
     extra_rew = params['extra_rew'] if 'extra_rew' in params else 0.0
+    if extra_rew == 0.0: return batch
     num_adversaries = params['num_adversaries'] if 'num_adversaries' in params else 0
     num_agents = params['num_agents'] if 'num_adversaries' in params else 0
     batch = calculate_alignment_reward(

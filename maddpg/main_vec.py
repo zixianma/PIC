@@ -197,7 +197,6 @@ for i_episode in range(args.num_episodes):
         total_numsteps += 1
         episode_step += 1
         terminal = (episode_step >= args.num_steps)
-
         action = torch.Tensor(action_n).view(1, -1)
         mask = torch.Tensor([[not done for done in done_n]])
         next_x = torch.Tensor(np.concatenate(next_obs_n, axis=0)).view(1, -1)

@@ -11,24 +11,26 @@ class Scenario(BaseScenario):
     def __init__(self):
         obs_path = os.path.dirname(os.path.abspath(__file__))
         obs_path = os.path.dirname(os.path.dirname(obs_path))
-        scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_n6_train_prey/agents_best.ckpt')
-        self.scripted_agents = torch.load(scripted_agent_ckpt)['agents']
+        # scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_n6_train_prey/agents_best.ckpt')
+        # self.scripted_agents = torch.load(scripted_agent_ckpt)['agents']
 
     def make_world(self):
-        world = World(self.scripted_agents, self.observation)
+        # world = World(self.scripted_agents, self.observation)
+        world = World(None, self.observation)
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 6
-        num_adversaries = 4
+        num_good_agents = 2
+        num_adversaries = 6
+        world.num_adversaries = num_adversaries
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 3
         self.world_radius = 1.5
         world.collaborative = True
         # add agents
-        world.agents = [Agent() for _ in range(num_adversaries)] \
-                       + [Agent(action_callback) for _ in range(num_good_agents)]
-        #world.agents = [Agent(), Agent(), Agent(), Agent(action_callback)]
+        # world.agents = [Agent() for _ in range(num_adversaries)] \
+        #                + [Agent(action_callback) for _ in range(num_good_agents)]
+        world.agents = [Agent() for _ in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True
@@ -69,6 +71,16 @@ class Scenario(BaseScenario):
                 landmark.state.p_vel = np.zeros(world.dim_p)
 
 
+    # def benchmark_data(self, agent, world):
+    #     # returns data for benchmarking purposes
+    #     if agent.adversary:
+    #         collisions = 0
+    #         for a in self.good_agents(world):
+    #             if self.is_collision(a, agent):
+    #                 collisions += 1
+    #         return collisions
+    #     else:
+    #         return 0
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
         if agent.adversary:
@@ -76,9 +88,12 @@ class Scenario(BaseScenario):
             for a in self.good_agents(world):
                 if self.is_collision(a, agent):
                     collisions += 1
-            return collisions
+            return [collisions, 0]
         else:
-            return 0
+            adversaries = self.adversaries(world)
+            min_cr_dist = min([np.sqrt(np.sum(np.square(
+                    agent.state.p_pos - adv.state.p_pos))) for adv in adversaries])
+            return [0, min_cr_dist]
 
 
     def is_collision(self, agent1, agent2):
@@ -178,8 +193,9 @@ class Scenario(BaseScenario):
                 if other is agent: continue
                 comm.append(other.state.c)
                 other_pos.append(other.state.p_pos - agent.state.p_pos)
-                if not other.adversary:
-                    other_vel.append(other.state.p_vel)
+                # if not other.adversary:
+                #     other_vel.append(other.state.p_vel)
+                other_vel.append(other.state.p_vel)
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
         else:
             # get positions of all entities in this agent's reference frame
@@ -196,9 +212,10 @@ class Scenario(BaseScenario):
                 if other is agent: continue
                 comm.append(other.state.c)
                 other_pos.append(other.state.p_pos - agent.state.p_pos)
-                if not other.adversary:
-                    other_vel.append(other.state.p_vel)
-
+                # if not other.adversary:
+                #     other_vel.append(other.state.p_vel)
+                other_vel.append(other.state.p_vel)
+                
             #other_pos = sorted(other_pos, key=lambda k: [k[0], k[1]])
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
 
