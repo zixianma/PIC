@@ -170,6 +170,7 @@ class Scenario(BaseScenario):
             # return min(np.exp(2 * x - 2), 10)  # 1 + (x - 1) * (x - 1)
             # not sure why 2 * (x - 1) is necessary to replacing it with 1 *
             return min(np.exp(x - 1), 10)
+        
         for p in range(world.dim_p):
             x = abs(agent.state.p_pos[p])
             agent_bound_penalty = bound(x)
@@ -180,6 +181,12 @@ class Scenario(BaseScenario):
                     agent.state.p_pos - l.state.p_pos)))
                     for l in world.landmarks[:num_landmark]]
             rew += 1.0 - min(dists)
+        
+         # extra reward for alignment to leader in the group
+        leader = world.agents[0]
+        if agent != leader:
+            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+            rew += extra_rew
         return rew
 
     def observation(self, agent, world):

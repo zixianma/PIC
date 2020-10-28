@@ -105,31 +105,45 @@ def copy_actor_policy(s_agent, t_agent):
         t_agent.actor_params, t_agent.critic_params = None, None
 
 def calculate_alignment_reward(batch, memory, indice, extra_rew, num_agents, num_adversaries):
+    import time 
+    t1 = time.time()
     batch_size = len(batch.state)
-    # num_agents = batch.state[0].shape
-    # print(batch_size, num_agents)
-    # if not hasattr(batch, 'reward'):
-    #     batch.reward = np.zeros((batch_size, num_agents))
     buf_len = len(memory)
-    # print(memory[0].mask.detach().numpy())
-    done = np.asarray([memory[i].mask.detach().numpy()[0] for i in range(buf_len)])
-    # done = torch.reshape(done, (len(buf_len), done[0].shape[1]))
-    # print(memory[0].action.detach().numpy())
     action_n = int(memory[0].action.size()[1] / num_agents)
-    act = np.asarray([[np.argmax(memory[j].action.detach().numpy()[0][i:i+action_n]) for i in range(num_agents)] for j in range(buf_len)])
-    now = indice % buf_len
-    last = (indice - 1) % buf_len
-    done_mask, act_mask = np.zeros(batch_size), np.zeros(batch_size)
+    # dones, acts = [], []
+    # for i in range(buf_len):
+    #     dones.append(memory[i].mask)
+    #     act_probs = memory[i].action
+    #     act = torch.zeros((1, num_agents))
+    #     for j in range(num_agents):
+    #         act[0, j] = torch.argmax(act_probs[0, j:j+action_n])
+    #     acts.append(act)
+    # done = torch.cat(dones, 0)
+    # act = torch.cat(acts, 0)
+    # reward = torch.cat([batch.reward[i] for i in range(batch_size)],0)
+    # true = torch.FloatTensor([1.0]) # false is 1.0 and true 0.0
+    # trues = true.repeat(1,batch_size)
     
+    done = np.asarray([memory[i].mask.detach().numpy()[0] for i in range(buf_len)])
+    act = np.asarray([[np.argmax(memory[j].action.detach().numpy()[0][i:i+action_n]) for i in range(num_agents)] for j in range(buf_len)])
     reward = np.asarray([batch.reward[i].detach().numpy()[0] for i in range(batch_size)])
     trues = np.asarray([True] * batch_size)
+
+    now = indice % buf_len
+    last = (indice - 1) % buf_len
+    t2 = time.time()
     for k in range(num_adversaries + 1, num_agents):
         # get a mask to encode where the last action is not the end of the episode
         done_mask = done[last,k] == trues
         act_mask = act[now, k] == act[last, num_adversaries]
         combined_mask = done_mask & act_mask
+        # combined_mask = torch.reshape(combined_mask, (batch_size,))
         reward[:, k][combined_mask] += extra_rew 
+    t3 = time.time()
     new_reward = tuple(torch.reshape(torch.Tensor(reward[i, :]), (1, num_agents)) for i in range(batch_size))
+    # new_reward = tuple(torch.reshape(reward[i, :], (1, num_agents)) for i in range(batch_size))
+    t4 = time.time()
+    print(t2 - t1, t3 - t2, t4 - t3, t4 - t1)
     return batch._replace(reward=new_reward)
 
 def process_fn(batch, memory, indice, **kwargs):

@@ -71,7 +71,7 @@ parser.add_argument("--exp_name", type=str, help="name of the experiment")
 # parser.add_argument("--save_dir", type=str, default="./ckpt_plot",
 #                     help="directory in which training state and model should be saved")
 # server
-parser.add_argument("--save_dir", type=str, default=" /scr/zixianma/pic",
+parser.add_argument("--save_dir", type=str, default="/scr/zixianma/pic",
                     help="directory in which training state and model should be saved")
 parser.add_argument('--static_env', default=False, action='store_true')
 parser.add_argument('--critic_type', type=str, default='mlp', help="Supports [mlp, gcn_mean, gcn_max]")
@@ -88,7 +88,7 @@ parser.add_argument('--steps_per_critic_update', type=int, default=100)
 #parser.add_argument('--episodes_per_update', type=int, default=4)
 parser.add_argument('--target_update_mode', default='soft', help='soft | hard | episodic')
 parser.add_argument('--cuda', default=False, action='store_true')
-parser.add_argument('--eval_freq', type=int, default=1000)
+parser.add_argument('--eval_freq', type=int, default=50)
 parser.add_argument('--benchmark', type=bool, default=True)
 
 # alignment policy specific 
@@ -225,7 +225,7 @@ for i_episode in range(args.num_episodes):
                     # transitions = memory.sample(args.batch_size)
                     transitions, indice = memory.sample(args.batch_size)
                     batch = Transition(*zip(*transitions))
-                    batch = process_fn(batch, memory.memory, indice, extra_rew=extra_rew, num_agents=n_agents, num_adversaries=num_adversaries)
+                    # batch = process_fn(batch, memory.memory, indice, extra_rew=extra_rew, num_agents=n_agents, num_adversaries=num_adversaries)
                     policy_loss = agent.update_actor_parameters(batch, i, args.shuffle)
                     updates += 1
                 writer.add_scalar('policy_loss/train', policy_loss, i_episode)
@@ -237,7 +237,7 @@ for i_episode in range(args.num_episodes):
                     # transitions = memory.sample(args.batch_size)
                     transitions, indice = memory.sample(args.batch_size)
                     batch = Transition(*zip(*transitions))
-                    batch = process_fn(batch, memory.memory, indice,extra_rew=extra_rew, num_agents=n_agents,num_adversaries=num_adversaries)
+                    # batch = process_fn(batch, memory.memory, indice,extra_rew=extra_rew, num_agents=n_agents,num_adversaries=num_adversaries)
                     value_losses.append(agent.update_critic_parameters(batch, i, args.shuffle))
                     updates += 1
                 value_loss = np.mean(value_losses)
@@ -262,8 +262,8 @@ for i_episode in range(args.num_episodes):
         writer.add_scalar('dist/train', episode_benchmark[1], i_episode)
     elif 'simple_coop_push':
         writer.add_scalar('collision/train', episode_benchmark[0], i_episode)
-        writer.add_scalar('min_dist/train', episode_benchmark[1], i_episode)
-        writer.add_scalar('occupied_landmark/train', episode_benchmark[2], i_episode)
+        writer.add_scalar('avg_dist/train', episode_benchmark[1], i_episode)
+        writer.add_scalar('occupied_target/train', episode_benchmark[2], i_episode)
     
     rewards.append(episode_reward)
     benchmarks.append(episode_benchmark)

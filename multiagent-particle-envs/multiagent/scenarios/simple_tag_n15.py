@@ -130,6 +130,7 @@ class Scenario(BaseScenario):
         # Agents are negatively rewarded if caught by adversaries
         rew = 0
         shape = False
+        good_agents = self.good_agents(world)
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
@@ -138,6 +139,15 @@ class Scenario(BaseScenario):
             for a in adversaries:
                 if self.is_collision(a, agent):
                     rew -= 10
+        
+        # extra reward for alignment to leader in the group
+        leader = good_agents[0]
+        count = 0
+        if agent != leader:
+            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+            print(count, extra_rew)
+            rew += extra_rew
+            count += 1
 
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries
         def bound(x):
