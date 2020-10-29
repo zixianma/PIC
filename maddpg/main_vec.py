@@ -88,7 +88,7 @@ parser.add_argument('--steps_per_critic_update', type=int, default=100)
 #parser.add_argument('--episodes_per_update', type=int, default=4)
 parser.add_argument('--target_update_mode', default='soft', help='soft | hard | episodic')
 parser.add_argument('--cuda', default=False, action='store_true')
-parser.add_argument('--eval_freq', type=int, default=50)
+parser.add_argument('--eval_freq', type=int, default=1000)
 parser.add_argument('--benchmark', type=bool, default=True)
 
 # alignment policy specific 
