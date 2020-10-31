@@ -1,6 +1,18 @@
 import csv
 import torch 
 import numpy as np
+from cv2 import VideoWriter, VideoWriter_fourcc
+
+def create_video(frames, video_file):
+    width, height, _ = frames[0].shape
+    fps = 60
+    # fourcc = VideoWriter_fourcc(*'MP42')
+    fourcc = VideoWriter_fourcc(*'MP4V')
+    video = VideoWriter(video_file, fourcc, float(fps), (width, height))
+
+    for i in range(len(frames)):
+        video.write(frames[i])
+    video.release()
 
 
 def adjust_learning_rate(optimizer, steps, max_steps, start_decrease_step, init_lr):
@@ -87,7 +99,6 @@ def make_env_vec(scenario_name, arglist, benchmark=False):
         env = MultiAgentEnv(world, scenario.reset_world, scenario.reward, scenario.observation,
                             seed_callback=scenario.seed, cam_range=scenario.world_radius)
     return env
-
 
 def copy_actor_policy(s_agent, t_agent):
     if hasattr(s_agent, 'actors'):

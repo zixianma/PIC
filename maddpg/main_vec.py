@@ -92,7 +92,14 @@ parser.add_argument('--eval_freq', type=int, default=1000)
 parser.add_argument('--benchmark', type=bool, default=True)
 
 # alignment policy specific 
-parser.add_argument('--extra_rew', type=float, default=0.0)
+# parser.add_argument('--extra_rew', type=float, default=0.0)
+
+# for rendering
+parser.add_argument('--render', type=float, default=0.01)
+parser.add_argument('--render_mode', type=str, default='rgb_array')
+parser.add_argument('--render_freq', type=int, default=200, 
+                    help='save frame data for rendering per this number of eval runs')
+
 args = parser.parse_args()
 if args.exp_name is None:
     args.exp_name = args.scenario + '_' + args.critic_type + '_' + args.target_update_mode + '_hiddensize' \
@@ -114,7 +121,7 @@ random.seed(args.seed)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
 num_adversaries = env.world.num_adversaries
-extra_rew = args.extra_rew
+# extra_rew = args.extra_rew
 
 n_actions = n_actions(env.action_space)
 obs_dims = [env.observation_space[i].shape[0] for i in range(n_agents)]

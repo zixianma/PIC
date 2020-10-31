@@ -4,6 +4,7 @@ import numpy as np
 
 import matplotlib as mpl
 import csv
+import argparse
 
 mpl.use('Agg')
 from matplotlib import pyplot as plt
@@ -96,4 +97,14 @@ def read_csv(csv_path):
         for row in csv_reader:
             res[row[0]] = [float(r) for r in row[1:]]
     return res
+
+def main():
+    
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--csv_path', required=True,help='path to the train_curve.csv file')
+    args = parser.parse_args()
+    res = read_csv(args.csv_path)
+
+if __name__ == "__main__":
+    main()
 
