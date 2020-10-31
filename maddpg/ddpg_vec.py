@@ -196,7 +196,6 @@ class DDPG(object):
             mu = self.actor_perturbed((Variable(state)))
         else:
             mu = self.actor((Variable(state)))
-
         self.actor.train()
         if not grad:
             mu = mu.data

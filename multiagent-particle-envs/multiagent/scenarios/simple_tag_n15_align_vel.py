@@ -53,7 +53,8 @@ class Scenario(BaseScenario):
             landmark.boundary = False
         # make initial conditions
         self.collide_th = self.good_agents(world)[0].size + self.adversaries(world)[0].size
-        self.n_visible_agent = 1
+        # self.n_visible_agent = 1
+        self.n_visible_agent = 3
         self.n_visible_landmark = 3
         self.n_visible_adv = 6
         self.n_adv_visible_agent = 3
@@ -130,6 +131,7 @@ class Scenario(BaseScenario):
         # Agents are negatively rewarded if caught by adversaries
         rew = 0
         shape = False
+        good_agents = self.good_agents(world)
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
@@ -138,6 +140,14 @@ class Scenario(BaseScenario):
             for a in adversaries:
                 if self.is_collision(a, agent):
                     rew -= 10
+        
+        # extra reward for alignment to leader in the group
+        leader = good_agents[0]
+        count = 0
+        if agent != leader:
+            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+            rew += extra_rew
+            count += 1
 
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries
         def bound(x):
@@ -189,24 +199,25 @@ class Scenario(BaseScenario):
                 if other is agent: continue
                 comm.append(other.state.c)
                 #other_pos.append(other.state.p_pos - agent.state.p_pos)
-                if other.adversary:
-                    other_adv_pos.append(other.state.p_pos - agent.state.p_pos)
-                else:
-                    agent_pos.append(other.state.p_pos - agent.state.p_pos)
-                    agent_vel.append(other.state.p_vel)
+                # if other.adversary:
+                #     other_adv_pos.append(other.state.p_pos - agent.state.p_pos)
+                # else:
+                agent_pos.append(other.state.p_pos - agent.state.p_pos)
+                agent_vel.append(other.state.p_vel)
             entity_dist = np.sqrt(np.sum(np.square(np.array(entity_pos) - agent.state.p_pos), axis=1))
             entity_dist_idx = np.argsort(entity_dist)
             entity_pos = [entity_pos[i] for i in entity_dist_idx[:self.n_visible_landmark]]
 
-            other_adv_dist = np.sqrt(np.sum(np.square(np.array(other_adv_pos) - agent.state.p_pos), axis=1))
-            other_adv_idx = np.argsort(other_adv_dist)
-            other_adv_pos = [other_adv_pos[i] for i in other_adv_idx[:self.n_visible_adv]]
+            # other_adv_dist = np.sqrt(np.sum(np.square(np.array(other_adv_pos) - agent.state.p_pos), axis=1))
+            # other_adv_idx = np.argsort(other_adv_dist)
+            # other_adv_pos = [other_adv_pos[i] for i in other_adv_idx[:self.n_visible_adv]]
 
             agent_dist = np.sqrt(np.sum(np.square(np.array(agent_pos) - agent.state.p_pos), axis=1))
             agent_idx = np.argsort(agent_dist)
-            agent_pos = [agent_pos[i] for i in agent_idx[:self.n_visible_agent]]
-            other_pos = other_adv_pos + agent_pos
-            agent_vel = [agent_vel[i] for i in agent_idx[:self.n_visible_agent]]
+            agent_pos = [agent_pos[i] for i in agent_idx[:self.n_visible_agent+self.n_visible_adv]]
+            # other_pos = other_adv_pos + agent_pos
+            other_pos = agent_pos
+            agent_vel = [agent_vel[i] for i in agent_idx[:self.n_visible_agent+self.n_visible_adv]]
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + agent_vel)
         else:
             # get positions of all entities in this agent's reference frame
@@ -225,24 +236,25 @@ class Scenario(BaseScenario):
                 if other is agent: continue
                 comm.append(other.state.c)
                 #other_pos.append(other.state.p_pos - agent.state.p_pos)
-                if other.adversary:
-                    other_adv_pos.append(other.state.p_pos - agent.state.p_pos)
-                else:
-                    agent_pos.append(other.state.p_pos - agent.state.p_pos)
-                    agent_vel.append(other.state.p_vel)
+                # if other.adversary:
+                #     other_adv_pos.append(other.state.p_pos - agent.state.p_pos)
+                # else:
+                agent_pos.append(other.state.p_pos - agent.state.p_pos)
+                agent_vel.append(other.state.p_vel)
             entity_dist = np.sqrt(np.sum(np.square(np.array(entity_pos) - agent.state.p_pos), axis=1))
             entity_dist_idx = np.argsort(entity_dist)
             entity_pos = [entity_pos[i] for i in entity_dist_idx[:self.n_adv_visible_landmark]]
 
-            other_adv_dist = np.sqrt(np.sum(np.square(np.array(other_adv_pos) - agent.state.p_pos), axis=1))
-            other_adv_idx = np.argsort(other_adv_dist)
-            other_adv_pos = [other_adv_pos[i] for i in other_adv_idx[:self.n_adv_visible_adv]]
+            # other_adv_dist = np.sqrt(np.sum(np.square(np.array(other_adv_pos) - agent.state.p_pos), axis=1))
+            # other_adv_idx = np.argsort(other_adv_dist)
+            # other_adv_pos = [other_adv_pos[i] for i in other_adv_idx[:self.n_adv_visible_adv]]
 
             agent_dist = np.sqrt(np.sum(np.square(np.array(agent_pos) - agent.state.p_pos), axis=1))
             agent_idx = np.argsort(agent_dist)
-            agent_pos = [agent_pos[i] for i in agent_idx[:self.n_adv_visible_agent]]
-            other_pos = other_adv_pos + agent_pos
-            agent_vel = [agent_vel[i] for i in agent_idx[:self.n_adv_visible_agent]]
+            agent_pos = [agent_pos[i] for i in agent_idx[:self.n_adv_visible_agent+self.n_adv_visible_adv]]
+            # other_pos = other_adv_pos + agent_pos
+            other_pos = agent_pos
+            agent_vel = [agent_vel[i] for i in agent_idx[:self.n_adv_visible_agent+self.n_adv_visible_adv]]
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + agent_vel)
 
     def seed(self, seed=None):

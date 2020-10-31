@@ -95,7 +95,7 @@ parser.add_argument('--benchmark', type=bool, default=True)
 # parser.add_argument('--extra_rew', type=float, default=0.0)
 
 # for rendering
-parser.add_argument('--render', type=float, default=0.01)
+parser.add_argument('--render', type=float, default=0)
 parser.add_argument('--render_mode', type=str, default='rgb_array')
 parser.add_argument('--render_freq', type=int, default=200, 
                     help='save frame data for rendering per this number of eval runs')

@@ -45,13 +45,12 @@ def eval_model_q(test_q, done_training, args):
             num_adversaries = eval_env.world.num_adversaries
             with temp_seed(args.seed):
                 for n_eval in range(args.num_eval_runs):
-                    print(args.num_eval_runs, n_eval)
                     obs_n = eval_env.reset()
                     episode_reward = 0
                     episode_step = 0
                     n_agents = eval_env.n
                     agents_rew = [[] for _ in range(n_agents)]
-                    # frames = []
+                    frames = []
                     if 'simple_tag' in args.scenario:
                         episode_benchmark = [0 for _ in range(2)]
                     elif 'simple_coop_push' in args.scenario:
