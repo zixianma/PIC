@@ -1,9 +1,9 @@
 import sys
 import json
-# local 
-sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
+# # local 
+# sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
 # server
-# sys.path.append('/sailhome/zixianma/PIC/multiagent-particle-envs')
+sys.path.append('/sailhome/zixianma/PIC/multiagent-particle-envs')
 import argparse
 import math
 from collections import namedtuple
@@ -68,11 +68,11 @@ parser.add_argument('--fixed_lr', default=False, action='store_true')
 parser.add_argument('--num_eval_runs', type=int, default=1000, help='number of runs per evaluation (default: 5)')
 parser.add_argument("--exp_name", type=str, help="name of the experiment")
 # local 
-parser.add_argument("--save_dir", type=str, default="./ckpt_plot",
-                    help="directory in which training state and model should be saved")
-# server
-# parser.add_argument("--save_dir", type=str, default="/scr/zixianma/pic",
+# parser.add_argument("--save_dir", type=str, default="./ckpt_plot",
 #                     help="directory in which training state and model should be saved")
+# server
+parser.add_argument("--save_dir", type=str, default="/scr/zixianma/pic",
+                    help="directory in which training state and model should be saved")
 parser.add_argument('--static_env', default=False, action='store_true')
 parser.add_argument('--critic_type', type=str, default='mlp', help="Supports [mlp, gcn_mean, gcn_max]")
 parser.add_argument('--actor_type', type=str, default='mlp', help="Supports [mlp, gcn_max]")
