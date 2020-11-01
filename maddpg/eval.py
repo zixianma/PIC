@@ -27,8 +27,8 @@ def eval_model_q(test_q, done_training, args):
     else:
         plot = {'good_rewards': [], 'adversary_rewards': [], 'rewards': [], 'steps': [], 'q_loss': [], 'gcn_q_loss': [],
             'p_loss': [], 'final': [], 'abs': []}
-    if args.render:
-        frame_data = {'frames': []}
+    # if args.render:
+    #     frame_data = {'frames': []}
     best_eval_reward = -100000000
     while True:
         if not test_q.empty():
@@ -50,7 +50,7 @@ def eval_model_q(test_q, done_training, args):
                     episode_step = 0
                     n_agents = eval_env.n
                     agents_rew = [[] for _ in range(n_agents)]
-                    frames = []
+                    # frames = []
                     if 'simple_tag' in args.scenario:
                         episode_benchmark = [0 for _ in range(2)]
                     elif 'simple_coop_push' in args.scenario:
@@ -70,14 +70,14 @@ def eval_model_q(test_q, done_training, args):
                             for i in range(len(episode_benchmark)):
                                 episode_benchmark[i] += sum(benchmark_n[:, i])
                         
-                        if args.render and n_eval % args.render_freq == 0:
-                            if args.render_mode:
-                                frame = eval_env.render(mode=args.render_mode)[0]
-                                frames.append(frame)
-                            else:
-                                eval_env.render()
-                            if args.render > 0:
-                                time.sleep(args.render)
+                        # if args.render and n_eval % args.render_freq == 0:
+                        #     if args.render_mode:
+                        #         frame = eval_env.render(mode=args.render_mode)[0]
+                        #         frames.append(frame)
+                        #     else:
+                        #         eval_env.render()
+                        #     if args.render > 0:
+                        #         time.sleep(args.render)
     
                         terminal = (episode_step >= args.num_steps)
                         
@@ -126,7 +126,7 @@ def eval_model_q(test_q, done_training, args):
                 plot['final'].append(np.mean(plot['rewards'][-10:]))
                 plot['abs'].append(best_eval_reward)
                 dict2csv(plot, os.path.join(tr_log['exp_save_dir'], 'train_curve.csv'))
-                dict2csv(frame_data, os.path.join(tr_log['exp_save_dir'], 'frame_data.csv'))
+                # dict2csv(frame_data, os.path.join(tr_log['exp_save_dir'], 'frame_data.csv'))
                 
                 eval_env.close()
         if done_training.value and test_q.empty():
