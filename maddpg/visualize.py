@@ -116,7 +116,8 @@ def visualize(args=get_args()):
                         if args.render > 0:
                             time.sleep(args.render)
 
-                    terminal = (episode_step >= params.num_steps)
+                    # terminal = (episode_step >= params.num_steps)
+                    terminal = (episode_step >= 250)
                     
                     episode_reward += np.sum(reward_n)
                     for i, r in enumerate(reward_n):

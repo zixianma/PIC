@@ -154,13 +154,16 @@ class Scenario(BaseScenario):
             rew += 1.0 - min(dists)
         
         # extra reward for alignment to leader in the group
-        leader = world.agents[0]
-        if agent != leader:
-            delta_pos = agent.state.p_pos - leader.state.p_pos
-            dist = np.sqrt(np.sum(np.square(delta_pos)))
-            if dist < world.max_obs_dist:
-                extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
-                rew += extra_rew
+        # leader = world.agents[0]
+        # if agent != leader:
+        #     delta_pos = agent.state.p_pos - leader.state.p_pos
+        #     dist = np.sqrt(np.sum(np.square(delta_pos)))
+        #     if dist < world.max_obs_dist:
+        #         extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+        #         rew += extra_rew
+        avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
+        extra_rew = np.dot(agent.state.p_vel, avg_vel)
+        rew += extra_rew
         return rew
 
     def observation(self, agent, world):

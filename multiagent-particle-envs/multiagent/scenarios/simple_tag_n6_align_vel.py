@@ -119,10 +119,13 @@ class Scenario(BaseScenario):
                     rew -= 10
                     
         # extra reward for alignment to leader in the group
-        leader = good_agents[0]
-        if agent != leader:
-            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
-            rew += extra_rew
+        # leader = good_agents[0]
+        # if agent != leader:
+        #     extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+        #     rew += extra_rew
+        avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
+        extra_rew = np.dot(agent.state.p_vel, avg_vel)
+        rew += extra_rew
 
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries
         def bound(x):
