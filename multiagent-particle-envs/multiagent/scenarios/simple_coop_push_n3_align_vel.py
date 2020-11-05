@@ -131,6 +131,7 @@ class Scenario(BaseScenario):
         num_landmark = int(len(world.landmarks) / 2)
         shape = True
         bound_only = True
+        radius = np.sqrt(2) / 2
         if not bound_only:
             if shape:
                 dists = [1 / np.sqrt(np.sum(np.square(
@@ -182,10 +183,19 @@ class Scenario(BaseScenario):
                     for l in world.landmarks[:num_landmark]]
             rew += 1.0 - min(dists)
         
-        # extra reward for alignment to leader in the group
-        avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
-        extra_rew = np.dot(agent.state.p_vel, avg_vel)
-        rew += extra_rew
+        
+        if rew > 0:
+            # eu_dist = lambda x, y:  np.sqrt(np.sum(np.square(x - y))) 
+            leader = world.agents[0]
+            if agent != leader:
+            # if agent != leader and eu_dist(leader.state.p_pos, agent.state.p_pos) < radius:
+                extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+                rew += extra_rew
+            # extra reward for alignment to leader in the group
+            # dists = [eu_dist(agent.state.p_pos, other_agent.state.p_pos) for other_agent in world.agents]
+            # avg_vel = np.mean([agent.state.p_vel for i, agent in enumerate(world.agents) if dists[i] <= radius], axis=0)
+            # extra_rew = np.dot(agent.state.p_vel, avg_vel)
+            # rew += extra_rew
         return rew
 
     def observation(self, agent, world):
