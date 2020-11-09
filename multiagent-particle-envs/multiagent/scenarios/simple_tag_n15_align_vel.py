@@ -141,14 +141,6 @@ class Scenario(BaseScenario):
                 if self.is_collision(a, agent):
                     rew -= 10
         
-        # extra reward for alignment to leader in the group
-        leader = good_agents[0]
-        count = 0
-        if agent != leader:
-            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
-            rew += extra_rew
-            count += 1
-
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries
         def bound(x):
             if x < 0.9:
@@ -160,6 +152,15 @@ class Scenario(BaseScenario):
             x = abs(agent.state.p_pos[p])
             rew -= bound(x)
 
+        # extra reward for alignment to leader in the group
+        # leader = good_agents[0]
+        # if agent != leader:
+        #     extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+        #     rew += extra_rew
+
+        avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
+        extra_rew = np.dot(agent.state.p_vel, avg_vel)
+        rew += extra_rew
         return rew
 
     def adversary_reward(self, agent, world):

@@ -159,12 +159,6 @@ class Scenario(BaseScenario):
             x = abs(agent.state.p_pos[p])
             rew -= bound(x)
 
-        # extra reward for alignment to leader in the group
-        # leader = good_agents[0]
-        # if agent != leader:
-        #     extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
-        #     rew += extra_rew
-
         return rew
 
     def adversary_reward(self, agent, world):

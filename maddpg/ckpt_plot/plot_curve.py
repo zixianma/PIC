@@ -22,7 +22,7 @@ def avg_list(l, avg_group_size=2):
     return ret_l
 
 
-def plot_result(t1, r1, fig_name, x_label, y_label):
+def plot_result(t1, r1, fig_name, x_label, y_label, save_path):
     plt.close()
     base = None
     base, = plt.plot(t1, avg_list(r1))
@@ -35,13 +35,13 @@ def plot_result(t1, r1, fig_name, x_label, y_label):
     plt.title(fig_name)
 
     try:
-        plt.savefig(fig_name + '.pdf')
-        plt.savefig(fig_name + '.png')
+        plt.savefig(save_path + '.pdf')
+        plt.savefig(save_path + '.png')
     except:
         print('ERROR:', sys.exc_info()[0])
         print('Terminate Program')
         sys.exit()
-    print('INFO: Wrote plot to ' + fig_name + '.pdf')
+    print('INFO: Wrote plot to ' + save_path + '.pdf')
 
 
 def plot_result2(t1, r1, r2, fig_name, x_label, y_label):
@@ -104,7 +104,19 @@ def main():
     parser.add_argument('--csv_path', required=True,help='path to the train_curve.csv file')
     args = parser.parse_args()
     res = read_csv(args.csv_path)
-
+    start = args.csv_path.find('exp_data') + 9
+    end = args.csv_path.rfind('/') 
+    exp_name = args.csv_path[start:end]
+    save_path = os.path.join(args.csv_path[:end], exp_name)
+    if 'simple_tag' in exp_name:
+        plot_result(res['steps'], res['rewards'], exp_name, 'steps', 'rewards', save_path + '_rewards')
+        plot_result(res['steps'], res['collisions'], exp_name, 'steps', 'predator-prey collisions', save_path + '_collisions')
+        plot_result(res['steps'], res['dists'], exp_name, 'steps', 'predator-prey min_dist', save_path + '_min_dist')
+    elif 'simple_coop_push' in exp_name:
+        plot_result(res['steps'], res['rewards'], exp_name, 'steps', 'rewards', save_path + '_rewards')
+        plot_result(res['steps'], res['collisions'], exp_name, 'steps', 'agent-ball collisions', save_path + '_collisions')
+        plot_result(res['steps'], res['avg_dists'], exp_name, 'steps', 'ball-target avg_dist', save_path + '_avg_dist')
+        plot_result(res['steps'], res['occupied_targets'], exp_name, 'steps', 'num of occupied target', save_path + '_occupied_target')
 if __name__ == "__main__":
     main()
 
