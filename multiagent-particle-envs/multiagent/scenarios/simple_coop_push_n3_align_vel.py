@@ -129,8 +129,8 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         rew = 0.0
         num_landmark = int(len(world.landmarks) / 2)
-        shape = True
-        bound_only = True
+        shape = False
+        bound_only = False
         radius = np.sqrt(2) / 2
         if not bound_only:
             if shape:
@@ -153,7 +153,7 @@ class Scenario(BaseScenario):
                             l.state.p_pos - t.state.p_pos)))
                     rew -= 10 * dist
                     if self.is_collision(l, t):
-                        rew += 20
+                        rew += 200
                     dists = [1 / np.sqrt(np.sum(np.square(
                              a.state.p_pos - l.state.p_pos)))
                              for a in world.agents]
@@ -184,18 +184,20 @@ class Scenario(BaseScenario):
             rew += 1.0 - min(dists)
         
         
-        if rew > 0:
-            # eu_dist = lambda x, y:  np.sqrt(np.sum(np.square(x - y))) 
-            leader = world.agents[0]
-            if agent != leader:
-            # if agent != leader and eu_dist(leader.state.p_pos, agent.state.p_pos) < radius:
-                extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
-                rew += extra_rew
-            # extra reward for alignment to leader in the group
-            # dists = [eu_dist(agent.state.p_pos, other_agent.state.p_pos) for other_agent in world.agents]
-            # avg_vel = np.mean([agent.state.p_vel for i, agent in enumerate(world.agents) if dists[i] <= radius], axis=0)
-            # extra_rew = np.dot(agent.state.p_vel, avg_vel)
-            # rew += extra_rew
+        #if rew > 0:
+        #eu_dist = lambda x, y:  np.sqrt(np.sum(np.square(x - y))) 
+       	#leader = world.agents[0]
+        #if agent != leader:
+        #if agent != leader and eu_dist(leader.state.p_pos, agent.state.p_pos) < radius:
+            #extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+            #rew += 0.1 * extra_rew
+         # extra reward for alignment to leader in the group
+        #dists = [eu_dist(agent.state.p_pos, other_agent.state.p_pos) for other_agent in world.agents]
+        
+        avg_vel = np.mean([agent.state.p_vel for i, agent in enumerate(world.agents)], axis=0)
+        extra_rew = np.dot(agent.state.p_vel, avg_vel)
+        rew += 2 * extra_rew
+        
         return rew
 
     def observation(self, agent, world):

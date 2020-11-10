@@ -115,8 +115,8 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         rew = 0.0
         num_landmark = int(len(world.landmarks) / 2)
-        shape = True
-        bound_only = True
+        shape = False
+        bound_only = False
         if not bound_only:
             if shape:
                 dists = [1 / np.sqrt(np.sum(np.square(
@@ -138,7 +138,7 @@ class Scenario(BaseScenario):
                             l.state.p_pos - t.state.p_pos)))
                     rew -= 10 * dist
                     if self.is_collision(l, t):
-                        rew += 20
+                        rew += 200
                     dists = [1 / np.sqrt(np.sum(np.square(
                              a.state.p_pos - l.state.p_pos)))
                              for a in world.agents]
@@ -168,13 +168,17 @@ class Scenario(BaseScenario):
             rew += 1.0 - min(dists)
 
          # extra reward for alignment to leader in the group
-        leader = world.agents[0]
-        if agent != leader:
-            extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
-            rew += extra_rew
-
+        #leader = world.agents[0]
+        #if agent != leader:
+            #extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+            #rew += extra_rew
+        
+        avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
+        extra_rew = np.dot(agent.state.p_vel, avg_vel)
+        rew += extra_rew
+        
         return rew
-
+    '''
     def observation(self, agent, world):
         """
         :param agent: an agent
@@ -211,6 +215,35 @@ class Scenario(BaseScenario):
         obs = np.concatenate((np.array([agent.state.p_vel]), np.array([agent.state.p_pos]),
                               self.sorted_entity_pos[agent.id, :, :],
                               self.sorted_other_pos[agent.id, :, :]), axis=0).reshape(-1)
+        return obs
+    '''
+    def observation(self, agent, world):
+        """
+        :param agent: an agent
+        :param world: the current world
+        :return: obs: [18] np array,
+        [0-1] self_agent velocity
+        [2-3] self_agent location
+        [4-9] landmarks location
+        [10-11] agent_i's relative location
+        [12-13] agent_j's relative location
+        Note that i < j
+        """
+        # get positions of all entities in this agent's reference frame
+        entity_pos = []
+        for entity in world.landmarks:  # world.entities:
+            entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+        # entity colors
+        entity_color = []
+        for entity in world.landmarks:  # world.entities:
+            entity_color.append(entity.color)
+        # communication of all other agents
+        other_pos = []
+        for other in world.agents:
+            if other is agent: continue
+            other_pos.append(other.state.p_pos - agent.state.p_pos)
+
+        obs = np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos)
         return obs
 
     def seed(self, seed=None):
