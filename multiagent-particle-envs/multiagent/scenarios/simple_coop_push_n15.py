@@ -115,7 +115,7 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         rew = 0.0
         num_landmark = int(len(world.landmarks) / 2)
-        shape = False
+        shape = True
         bound_only = False
         if not bound_only:
             if shape:
@@ -130,7 +130,7 @@ class Scenario(BaseScenario):
                     rew -= 10 * np.sqrt(np.sum(np.square(
                             t.state.p_pos - l.state.p_pos)))
                     if self.is_collision(l, t):
-                        rew += 20
+                        rew += 200
             else:
                 for l, t in zip(world.landmarks[:num_landmark],
                                 world.landmarks[num_landmark:]):
