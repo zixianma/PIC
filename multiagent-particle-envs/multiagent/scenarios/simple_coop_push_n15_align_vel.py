@@ -115,7 +115,7 @@ class Scenario(BaseScenario):
     def reward(self, agent, world):
         rew = 0.0
         num_landmark = int(len(world.landmarks) / 2)
-        shape = False
+        shape = True
         bound_only = False
         if not bound_only:
             if shape:
@@ -130,7 +130,7 @@ class Scenario(BaseScenario):
                     rew -= 10 * np.sqrt(np.sum(np.square(
                             t.state.p_pos - l.state.p_pos)))
                     if self.is_collision(l, t):
-                        rew += 20
+                        rew += 200
             else:
                 for l, t in zip(world.landmarks[:num_landmark],
                                 world.landmarks[num_landmark:]):
@@ -174,9 +174,15 @@ class Scenario(BaseScenario):
             #rew += extra_rew
         
         avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
-        extra_rew = np.dot(agent.state.p_vel, avg_vel)
-        rew += extra_rew
-        
+        #avg_pos = np.mean([agent.state.p_pos for agent in world.agents], axis=0) 
+        # keep a distance of (agent's diameter) between agent the the group center
+        #abs_dist_diff = np.abs(np.sqrt(np.sum(np.square(agent.state.p_pos - avg_pos))) - 4 * agent.size)
+        align_vel_rew = np.dot(agent.state.p_vel, avg_vel)
+        #align_pos_rew = -abs_dist_diff
+        #print('align vel', align_vel_rew)
+        #print('align sum', align_vel_rew + align_pos_rew)
+        #rew += align_vel_rew + align_pos_rew
+        rew += 0.1 * align_vel_rew
         return rew
     '''
     def observation(self, agent, world):
