@@ -1,5 +1,5 @@
 import sys
-
+import os 
 import torch
 import torch.nn as nn
 from torch.optim import Adam
@@ -73,6 +73,62 @@ class Actor(nn.Module):
         mu = self.mu(x)
         return mu
 
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+class Inverse(nn.Module):
+    def __init__(self, hidden_size, num_inputs, num_outputs):
+        super(Inverse, self).__init__()
+        self.universeHead = nn.Sequential(
+          nn.Conv1d(num_inputs, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          Flatten()
+        )
+        self.linear1 = nn.Linear(32 * 2 + 1, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, num_outputs)
+    
+
+    def forward(self, state, next_state):
+        phi1, phi2 = self.universeHead(state), self.universeHead(next_state)
+        x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, phi2]), 1)
+        x = self.linear1(x)
+        x = F.relu(x)
+        x = self.linear2(x)
+        return x
+
+class Forward(nn.Module):
+    def __init__(self, hidden_size, num_inputs, num_outputs, num_agents):
+        super(Forward, self).__init__()
+        self.universeHead = nn.Sequential(
+          nn.Conv1d(num_inputs, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          Flatten()
+        )
+        # the concatenated feature space has a dimensionality of dim(phi1) + dim(actions) + dim(ones)
+        self.linear1 = nn.Linear(32 + num_outputs + 1, hidden_size)
+        self.linear2 = nn.Linear(hidden_size, 32)
+
+
+    def forward(self, inputs, actions):
+        phi1 = self.universeHead(inputs)
+        x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, actions]), 1)
+        x = self.linear1(x)
+        x = F.relu(x)
+        x = self.linear2(x)
+        return x
 
 class ActorG(nn.Module):
     def __init__(self, hidden_size, num_inputs, num_outputs, num_agents, critic_type='mlp', group=None):
@@ -96,7 +152,6 @@ class ActorG(nn.Module):
         x = self.net(x)
         mu = self.mu(x)
         return mu
-
 
 class Critic(nn.Module):
     def __init__(self, hidden_size, num_inputs, num_outputs, num_agents, critic_type='mlp', agent_id=0, group=None):
@@ -155,6 +210,11 @@ class DDPG(object):
         critic_n_params = sum(p.numel() for p in self.critic.parameters())
         print('# of critic params', critic_n_params)
         self.critic_optim = Adam(self.critic.parameters(), lr=critic_lr)
+
+        self.inverse = Inverse(hidden_size, obs_dim, n_action)
+        self.inverse_optim = Adam(self.inverse.parameters(), lr=actor_lr, weight_decay=0)
+        self.forward = Forward(hidden_size, obs_dim, n_action, n_agent)
+        self.forward_optim = Adam(self.forward.parameters(), lr=actor_lr, weight_decay=0)
         self.fixed_lr = fixed_lr
         self.init_act_lr = actor_lr
         self.init_critic_lr = critic_lr
@@ -163,6 +223,8 @@ class DDPG(object):
         self.num_steps = num_steps
         self.actor_scheduler = LambdaLR(self.actor_optim, lr_lambda=self.lambda1)
         self.critic_scheduler = LambdaLR(self.critic_optim, lr_lambda=self.lambda1)
+        self.inverse_scheduler = LambdaLR(self.inverse_optim, lr_lambda=self.lambda1)
+        self.forward_scheduler = LambdaLR(self.forward_optim, lr_lambda=self.lambda1)
         self.gamma = gamma
         self.tau = tau
         self.train_noise = train_noise
@@ -173,6 +235,8 @@ class DDPG(object):
         self.target_update_mode = target_update_mode
         self.actor_params = self.actor.parameters()
         self.critic_params = self.critic.parameters()
+        self.inverse_params = self.inverse.parameters()
+        self.forward_params = self.forward.parameters()
         # Make sure target is with the same weight
         hard_update(self.actor_target, self.actor)
         hard_update(self.critic_target, self.critic)
@@ -265,7 +329,6 @@ class DDPG(object):
             state_batch.view(-1, self.obs_dim), action_noise=self.train_noise, grad=True)
         action_batch_n = action_batch_n.view(-1, self.n_action * self.n_agent)
 
-
         policy_loss = -self.critic(state_batch, action_batch_n)
         policy_loss = policy_loss.mean() + 1e-3 * (logit ** 2).mean()
         policy_loss.backward()
@@ -277,6 +340,87 @@ class DDPG(object):
         soft_update(self.critic_target, self.critic, self.tau)
 
         return policy_loss.item()
+    
+    # def update_inverse_parameters(self, batch, agent_id, shuffle=None):
+    #     state_batch = Variable(torch.cat(batch.state)).to(self.device)
+    #     next_state_batch = torch.cat(batch.next_state).to(self.device)
+       
+    #     state_batch = state_batch.view(-1, self.obs_dim, 1) 
+    #     # print("original state shape:", state_batch.shape)
+    #     next_state_batch = next_state_batch.view(-1, self.obs_dim, 1) 
+
+    #     self.inverse_optim.zero_grad()
+    #     action_batch_n, action_logit = self.select_action(
+    #         state_batch.view(-1, self.obs_dim), action_noise=self.train_noise, grad=True)
+    #     # print("original action shape:", action_batch_n.shape)
+    #     action_batch_n = action_batch_n.view(-1, self.n_action * self.n_agent)
+    #     # print("updated state shape and action shape", state_batch.shape, action_batch_n.shape)
+
+    #     inv_logits = self.inverse(state_batch, next_state_batch)
+    #     # print("input and target sizes:", inv_logits.shape, action_logit.shape)
+    #     inv_loss = F.binary_cross_entropy_with_logits(inv_logits, action_logit)
+    #     inv_loss.backward()
+    #     clip_grad_norm_(self.inverse_params, 0.5)
+    #     self.inverse_optim.step()
+
+        # return inv_loss.item()
+    
+    # def update_forward_parameters(self, batch, agent_id, shuffle=None):
+    #     state_batch = Variable(torch.cat(batch.state)).to(self.device)
+    #     next_state_batch = torch.cat(batch.next_state).to(self.device)
+       
+    #     self.forward_optim.zero_grad()
+    #     action_batch_n, logit = self.select_action(
+    #         state_batch.view(-1, self.obs_dim), action_noise=self.train_noise, grad=True)
+    #     action_batch_n = action_batch_n.view(-1, self.n_action)
+
+    #     state_batch = state_batch.view(-1, self.obs_dim, 1) 
+    #     next_state_batch = next_state_batch.view(-1, self.obs_dim, 1) 
+
+    #     next_state_phi = self.forward.universeHead(next_state_batch)
+    #     action_batch_n = action_batch_n.detach()
+    #     forward_out = self.forward(state_batch, action_batch_n)
+    #     forward_loss = 0.5 * torch.mean((forward_out - next_state_phi) ** 2)
+    #     # forward_loss *= 288.0
+    #     forward_loss.backward()
+    #     clip_grad_norm_(self.forward_params, 0.5)
+    #     self.forward_optim.step()
+
+    #     return forward_loss.item()
+    
+    def update_inverse_and_forward_parameters(self, batch, agent_id, shuffle=None):
+        state_batch = Variable(torch.cat(batch.state)).to(self.device)
+        next_state_batch = torch.cat(batch.next_state).to(self.device)
+       
+        state_batch = state_batch.view(-1, self.obs_dim, 1) 
+        # print("original state shape:", state_batch.shape)
+        next_state_batch = next_state_batch.view(-1, self.obs_dim, 1) 
+        
+        self.inverse_optim.zero_grad()
+        action_batch_n, action_logit = self.select_action(
+            state_batch.view(-1, self.obs_dim), action_noise=self.train_noise, grad=True)
+        # print("original action shape:", action_batch_n.shape)
+        action_batch_n = action_batch_n.view(-1, self.n_action * self.n_agent)
+        # print("updated state shape and action shape", state_batch.shape, action_batch_n.shape)
+        inv_logits = self.inverse(state_batch, next_state_batch)
+        # print("input and target sizes:", inv_logits.shape, action_logit.shape)
+        inv_loss = F.binary_cross_entropy_with_logits(inv_logits, action_logit)
+        inv_loss.backward()
+        clip_grad_norm_(self.inverse_params, 0.5)
+        self.inverse_optim.step()
+        
+        self.forward_optim.zero_grad()
+        next_state_phi = self.forward.universeHead(next_state_batch)
+        action_batch_n = action_batch_n.view(-1, self.n_action).detach()
+
+        forward_out = self.forward(state_batch, action_batch_n)
+        forward_loss = 0.5 * torch.mean((forward_out - next_state_phi) ** 2)
+        forward_loss *= 288.0
+        forward_loss.backward()
+        clip_grad_norm_(self.forward_params, 0.5)
+        self.forward_optim.step()
+
+        return inv_loss.item(), forward_loss.item()
 
 
     def perturb_actor_parameters(self, param_noise):
@@ -289,17 +433,34 @@ class DDPG(object):
             param = params[name]
             param += torch.randn(param.shape) * param_noise.current_stddev
 
-    def save_model(self, env_name, suffix="", actor_path=None, critic_path=None):
-        if not os.path.exists('models/'):
-            os.makedirs('models/')
+    # def save_model(self, env_name, suffix="", actor_path=None, critic_path=None):
+    #     if not os.path.exists('models/'):
+    #         os.makedirs('models/')
 
-        if actor_path is None:
-            actor_path = "models/ddpg_actor_{}_{}".format(env_name, suffix)
-        if critic_path is None:
-            critic_path = "models/ddpg_critic_{}_{}".format(env_name, suffix)
-        print('Saving models to {} and {}'.format(actor_path, critic_path))
+    #     if actor_path is None:
+    #         actor_path = "models/ddpg_actor_{}_{}".format(env_name, suffix)
+    #     if critic_path is None:
+    #         critic_path = "models/ddpg_critic_{}_{}".format(env_name, suffix)
+    #     print('Saving models to {} and {}'.format(actor_path, critic_path))
+    #     torch.save(self.actor.state_dict(), actor_path)
+    #     torch.save(self.critic.state_dict(), critic_path)
+
+    def save_model(self, exp_name, exp_dir):
+        if not os.path.exists(exp_dir + 'models/'):
+            os.makedirs(exp_dir + 'models/')
+
+        # if actor_path is None:
+        actor_path = "models/ddpg_actor_{}".format(exp_name)
+        # if critic_path is None:
+        critic_path = "models/ddpg_critic_{}".format(exp_name)
+        inverse_path = "models/ddpg_inverse_{}".format(exp_name)
+        forward_path = "models/ddpg_forward_{}".format(exp_name)
+
+        print('Saving models to {}, {}, {} and {}'.format(actor_path, critic_path, inverse_path, forward_path))
         torch.save(self.actor.state_dict(), actor_path)
         torch.save(self.critic.state_dict(), critic_path)
+        torch.save(self.inverse.state_dict(), inverse_path)
+        torch.save(self.forward.state_dict(), forward_path)
 
     def load_model(self, actor_path, critic_path):
         print('Loading models from {} and {}'.format(actor_path, critic_path))

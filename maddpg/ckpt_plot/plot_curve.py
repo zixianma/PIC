@@ -104,7 +104,8 @@ def main():
     parser.add_argument('--csv_path', required=True,help='path to the train_curve.csv file')
     args = parser.parse_args()
     res = read_csv(args.csv_path)
-    start = args.csv_path.find('exp_data') + 9
+    start = args.csv_path.find('exp_data') 
+    start = start + 9 if start >= 0 else 0
     end = args.csv_path.rfind('/') 
     exp_name = args.csv_path[start:end]
     save_path = os.path.join(args.csv_path[:end], exp_name)
