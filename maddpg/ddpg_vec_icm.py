@@ -74,8 +74,11 @@ class Actor(nn.Module):
         return mu
 
 class Flatten(nn.Module):
-    def forward(self, input):
+    def forward(self,input):
         return input.view(input.size(0), -1)
+
+def flatten(input):
+    return input.view(input.size(0), -1)
 
 class Inverse(nn.Module):
     def __init__(self, hidden_size, num_inputs, num_outputs):
@@ -91,12 +94,21 @@ class Inverse(nn.Module):
           nn.ELU(),
           Flatten()
         )
+        # self.conv1 = nn.Conv1d(num_inputs, 32, 3, padding=1)
+        # self.conv2 = nn.Conv1d(32, 32, 3, padding=1)
+        # self.conv3 = nn.Conv1d(32, 32, 3, padding=1)
+        # self.conv4 = nn.Conv1d(32, 32, 3, padding=1)
         self.linear1 = nn.Linear(32 * 2 + 1, hidden_size)
         self.linear2 = nn.Linear(hidden_size, num_outputs)
-    
+        self.num_inputs = num_inputs
 
     def forward(self, state, next_state):
         phi1, phi2 = self.universeHead(state), self.universeHead(next_state)
+        # phi1, phi2 = F.elu(self.conv1(state)), F.elu(self.conv1(next_state))
+        # phi1, phi2 = F.elu(self.conv2(phi1)), F.elu(self.conv2(phi2))
+        # phi1, phi2 = F.elu(self.conv3(phi1)), F.elu(self.conv3(phi2))
+        # phi1, phi2 = flatten(F.elu(self.conv4(phi1))), flatten(F.elu(self.conv4(phi2)))
+             
         x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, phi2]), 1)
         x = self.linear1(x)
         x = F.relu(x)
@@ -117,10 +129,8 @@ class Forward(nn.Module):
           nn.ELU(),
           Flatten()
         )
-        # the concatenated feature space has a dimensionality of dim(phi1) + dim(actions) + dim(ones)
         self.linear1 = nn.Linear(32 + num_outputs + 1, hidden_size)
         self.linear2 = nn.Linear(hidden_size, 32)
-
 
     def forward(self, inputs, actions):
         phi1 = self.universeHead(inputs)
@@ -211,9 +221,9 @@ class DDPG(object):
         print('# of critic params', critic_n_params)
         self.critic_optim = Adam(self.critic.parameters(), lr=critic_lr)
 
-        self.inverse = Inverse(hidden_size, obs_dim, n_action)
+        self.inverse = Inverse(hidden_size, obs_dim, n_action).to(self.device)
         self.inverse_optim = Adam(self.inverse.parameters(), lr=actor_lr, weight_decay=0)
-        self.forward = Forward(hidden_size, obs_dim, n_action, n_agent)
+        self.forward = Forward(hidden_size, obs_dim, n_action, n_agent).to(self.device)
         self.forward_optim = Adam(self.forward.parameters(), lr=actor_lr, weight_decay=0)
         self.fixed_lr = fixed_lr
         self.init_act_lr = actor_lr
@@ -223,8 +233,8 @@ class DDPG(object):
         self.num_steps = num_steps
         self.actor_scheduler = LambdaLR(self.actor_optim, lr_lambda=self.lambda1)
         self.critic_scheduler = LambdaLR(self.critic_optim, lr_lambda=self.lambda1)
-        self.inverse_scheduler = LambdaLR(self.inverse_optim, lr_lambda=self.lambda1)
-        self.forward_scheduler = LambdaLR(self.forward_optim, lr_lambda=self.lambda1)
+        # self.inverse_scheduler = LambdaLR(self.inverse_optim, lr_lambda=self.lambda1)
+        # self.forward_scheduler = LambdaLR(self.forward_optim, lr_lambda=self.lambda1)
         self.gamma = gamma
         self.tau = tau
         self.train_noise = train_noise
@@ -235,8 +245,8 @@ class DDPG(object):
         self.target_update_mode = target_update_mode
         self.actor_params = self.actor.parameters()
         self.critic_params = self.critic.parameters()
-        self.inverse_params = self.inverse.parameters()
-        self.forward_params = self.forward.parameters()
+        # self.inverse_params = self.inverse.parameters()
+        # self.forward_params = self.forward.parameters()
         # Make sure target is with the same weight
         hard_update(self.actor_target, self.actor)
         hard_update(self.critic_target, self.critic)
@@ -406,7 +416,7 @@ class DDPG(object):
         # print("input and target sizes:", inv_logits.shape, action_logit.shape)
         inv_loss = F.binary_cross_entropy_with_logits(inv_logits, action_logit)
         inv_loss.backward()
-        clip_grad_norm_(self.inverse_params, 0.5)
+        clip_grad_norm_(self.inverse.parameters(), 0.5)
         self.inverse_optim.step()
         
         self.forward_optim.zero_grad()
@@ -417,7 +427,7 @@ class DDPG(object):
         forward_loss = 0.5 * torch.mean((forward_out - next_state_phi) ** 2)
         forward_loss *= 288.0
         forward_loss.backward()
-        clip_grad_norm_(self.forward_params, 0.5)
+        clip_grad_norm_(self.forward.parameters(), 0.5)
         self.forward_optim.step()
 
         return inv_loss.item(), forward_loss.item()

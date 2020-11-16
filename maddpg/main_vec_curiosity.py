@@ -1,9 +1,9 @@
 import sys
 import json
 # local 
-# sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
+sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
 # server
-sys.path.append('/sailhome/zixianma/PIC/multiagent-particle-envs')
+# sys.path.append('/sailhome/zixianma/PIC/multiagent-particle-envs')
 import argparse
 import math
 from collections import namedtuple
@@ -12,7 +12,7 @@ import numpy as np
 from eval import eval_model_q
 import copy
 import torch
-from ddpg_vec import DDPG
+from ddpg_vec_icm import DDPG
 from ddpg_vec_hetero import DDPGH
 import random
 
