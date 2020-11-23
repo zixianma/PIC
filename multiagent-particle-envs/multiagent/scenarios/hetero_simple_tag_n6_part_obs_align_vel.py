@@ -3,6 +3,7 @@ from multiagent.core_vec import World, Agent, Landmark
 from multiagent.scenario import BaseScenario
 import torch
 import os
+import math
 
 from multiagent.common import action_callback
 
@@ -27,6 +28,7 @@ class Scenario(BaseScenario):
         num_landmarks = 3
         self.world_radius = 1.5
         world.collaborative = True
+        world.max_obs_dist = math.sqrt(2) / 2
         self.n_group = 2
         # add agents
         # world.agents = [Agent() for _ in range(num_adversaries)] \
@@ -75,16 +77,7 @@ class Scenario(BaseScenario):
     def group(self):
         self.num_good_agents, self.num_adversaries = 2, 6
         return [self.num_adversaries, self.num_good_agents]
-    # def benchmark_data(self, agent, world):
-    #     # returns data for benchmarking purposes
-    #     if agent.adversary:
-    #         collisions = 0
-    #         for a in self.good_agents(world):
-    #             if self.is_collision(a, agent):
-    #                 collisions += 1
-    #         return collisions
-    #     else:
-    #         return 0
+
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
         if agent.adversary:
@@ -114,7 +107,6 @@ class Scenario(BaseScenario):
     def adversaries(self, world):
         return [agent for agent in world.agents if agent.adversary]
 
-
     def reward(self, agent, world):
         # Agents are rewarded based on minimum agent distance to each landmark
         main_reward = self.adversary_reward(agent, world) if agent.adversary else self.agent_reward(agent, world)
@@ -124,6 +116,7 @@ class Scenario(BaseScenario):
         # Agents are negatively rewarded if caught by adversaries
         rew = 0
         shape = False
+        good_agents = self.good_agents(world)
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
@@ -133,17 +126,24 @@ class Scenario(BaseScenario):
                 if self.is_collision(a, agent):
                     rew -= 10
 
-        # agents are penalized for exiting the screen, so that they can be caught by the adversaries
-        def bound(x):
-            if x < 0.9:
-                return 0
-            if x < 1.0:
-                return (x - 0.9) * 10
-            return min(np.exp(2 * x - 2), 10)
-        for p in range(world.dim_p):
-            x = abs(agent.state.p_pos[p])
-            rew -= bound(x)
+        def dist(a, b):
+            delta_pos = a.state.p_pos - b.state.p_pos
+            dist = np.sqrt(np.sum(np.square(delta_pos)))
+            return dist
 
+        # extra reward for alignment to leader in the group
+        '''
+        leader = world.agents[0]
+        if agent != leader:
+            delta_pos = agent.state.p_pos - leader.state.p_pos
+            dist = np.sqrt(np.sum(np.square(delta_pos)))
+            if dist < world.max_obs_dist:
+                extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
+                rew += extra_rew
+        '''
+        avg_vel = np.mean([other.state.p_vel for other in world.agents if not other.adversary and dist(other, agent) < world.max_obs_dist], axis=0)
+        extra_rew = np.dot(agent.state.p_vel, avg_vel)
+        rew += extra_rew
         return rew
 
     def adversary_reward(self, agent, world):
@@ -195,11 +195,18 @@ class Scenario(BaseScenario):
             other_vel = []
             for other in world.agents:
                 if other is agent: continue
-                comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
+                delta_pos = agent.state.p_pos - other.state.p_pos
+                dist = np.sqrt(np.sum(np.square(delta_pos)))
+                if dist > world.max_obs_dist:
+                # comm.append(other.state.c)
+                    other_pos.append([0,0])
+                    other_vel.append([0,0])
+                else:
+                    comm.append(other.state.c)
+                    other_pos.append(other.state.p_pos - agent.state.p_pos)
+                    # if not other.adversary:
+                    #     other_vel.append(other.state.p_vel)
+                    other_vel.append(other.state.p_vel)
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
         else:
             # get positions of all entities in this agent's reference frame
@@ -214,11 +221,23 @@ class Scenario(BaseScenario):
             other_vel = []
             for other in world.agents:
                 if other is agent: continue
-                comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
+                # comm.append(other.state.c)
+                # other_pos.append(other.state.p_pos - agent.state.p_pos)
+                # # if not other.adversary:
+                # #     other_vel.append(other.state.p_vel)
+                # other_vel.append(other.state.p_vel)
+                delta_pos = agent.state.p_pos - other.state.p_pos
+                dist = np.sqrt(np.sum(np.square(delta_pos)))
+                if dist > world.max_obs_dist:
+                # comm.append(other.state.c)
+                    other_pos.append([0,0])
+                    other_vel.append([0,0])
+                else:
+                    comm.append(other.state.c)
+                    other_pos.append(other.state.p_pos - agent.state.p_pos)
+                    # if not other.adversary:
+                    #     other_vel.append(other.state.p_vel)
+                    other_vel.append(other.state.p_vel)
                 
             #other_pos = sorted(other_pos, key=lambda k: [k[0], k[1]])
             return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)

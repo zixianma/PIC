@@ -74,7 +74,7 @@ class Scenario(BaseScenario):
     @property
     def group(self):
         self.num_good_agents, self.num_adversaries = 2, 6
-        return [self.num_good_agents, self.num_adversaries]
+        return [self.num_adversaries, self.num_good_agents]
     # def benchmark_data(self, agent, world):
     #     # returns data for benchmarking purposes
     #     if agent.adversary:
@@ -147,7 +147,7 @@ class Scenario(BaseScenario):
         avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
         extra_rew = np.dot(agent.state.p_vel, avg_vel)
         rew += extra_rew
-        
+
         return rew
 
     def adversary_reward(self, agent, world):

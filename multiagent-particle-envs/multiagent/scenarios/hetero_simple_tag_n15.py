@@ -12,6 +12,7 @@ class Scenario(BaseScenario):
         obs_path = os.path.dirname(os.path.abspath(__file__))
         obs_path = os.path.dirname(os.path.dirname(obs_path))
         # scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_n6_train_prey/agents_best.ckpt')
+        #scripted_agent_ckpt = os.path.join(obs_path, 'scripted_agent_ckpt/simple_tag_v5_al0a10_4/agents.ckpt')
         # self.scripted_agents = torch.load(scripted_agent_ckpt)['agents']
 
     def make_world(self):
@@ -20,24 +21,25 @@ class Scenario(BaseScenario):
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        self.num_good_agents = 2
-        self.num_adversaries = 6
-        world.num_adversaries = self.num_adversaries
+        self.num_good_agents = 5
+        self.num_adversaries = 15
         num_agents = self.num_adversaries + self.num_good_agents
-        num_landmarks = 3
-        self.world_radius = 1.5
+        world.num_adversaries = self.num_adversaries
+        num_landmarks = 5
+        self.world_radius = 1
         world.collaborative = True
-        self.n_group = 2
         # add agents
         # world.agents = [Agent() for _ in range(num_adversaries)] \
         #                + [Agent(action_callback) for _ in range(num_good_agents)]
+        #world.agents = [Agent(), Agent(), Agent(), Agent(action_callback)]
         world.agents = [Agent() for _ in range(num_agents)]
         for i, agent in enumerate(world.agents):
             agent.name = 'agent %d' % i
             agent.collide = True
             agent.silent = True
             agent.adversary = True if i < self.num_adversaries else False
-            agent.size = 0.075 if agent.adversary else 0.05
+            #agent.size = 0.075 if agent.adversary else 0.05
+            agent.size = 0.02 if agent.adversary else 0.01
             agent.accel = 3.0 if agent.adversary else 4.0
             #agent.accel = 20.0 if agent.adversary else 25.0
             agent.max_speed = 1.0 if agent.adversary else 1.3
@@ -47,10 +49,17 @@ class Scenario(BaseScenario):
             landmark.name = 'landmark %d' % i
             landmark.collide = True
             landmark.movable = False
-            landmark.size = 0.2
+            landmark.size = 0.1
             landmark.boundary = False
         # make initial conditions
         self.collide_th = self.good_agents(world)[0].size + self.adversaries(world)[0].size
+        # self.n_visible_agent = 1
+        self.n_visible_agent = 3
+        self.n_visible_landmark = 3
+        self.n_visible_adv = 6
+        self.n_adv_visible_agent = 3
+        self.n_adv_visible_landmark = 3
+        self.n_adv_visible_adv = 6
         self.reset_world(world)
         return world
 
@@ -73,7 +82,7 @@ class Scenario(BaseScenario):
 
     @property
     def group(self):
-        self.num_good_agents, self.num_adversaries = 2, 6
+        self.num_adversaries, self.num_good_agents = 15, 5
         return [self.num_adversaries, self.num_good_agents]
     # def benchmark_data(self, agent, world):
     #     # returns data for benchmarking purposes
@@ -85,6 +94,7 @@ class Scenario(BaseScenario):
     #         return collisions
     #     else:
     #         return 0
+
     def benchmark_data(self, agent, world):
         # returns data for benchmarking purposes
         if agent.adversary:
@@ -124,6 +134,7 @@ class Scenario(BaseScenario):
         # Agents are negatively rewarded if caught by adversaries
         rew = 0
         shape = False
+        good_agents = self.good_agents(world)
         adversaries = self.adversaries(world)
         if shape:  # reward can optionally be shaped (increased reward for increased distance from adversary)
             for adv in adversaries:
@@ -164,22 +175,6 @@ class Scenario(BaseScenario):
             if agent.collide:
                 n_collide = (dist < self.collide_th).sum()
             rew += 10 * n_collide
-
-
-
-            """
-            if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
-                for adv in adversaries:
-                    rew1 -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
-
-            if agent.collide:
-                n_col = 0
-                for ag in agents:
-                    for adv in adversaries:
-                        if self.is_collision(ag, adv):
-                            n_col += 1
-                            rew1 += 10
-            """
         return rew
 
     def observation(self, agent, world):
@@ -192,15 +187,33 @@ class Scenario(BaseScenario):
             # communication of all other agents
             comm = []
             other_pos = []
-            other_vel = []
+            other_adv_pos = []
+            agent_pos = []
+            agent_vel = []
             for other in world.agents:
                 if other is agent: continue
                 comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
-            return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+                #other_pos.append(other.state.p_pos - agent.state.p_pos)
+                # if other.adversary:
+                #     other_adv_pos.append(other.state.p_pos - agent.state.p_pos)
+                # else:
+                agent_pos.append(other.state.p_pos - agent.state.p_pos)
+                agent_vel.append(other.state.p_vel)
+            entity_dist = np.sqrt(np.sum(np.square(np.array(entity_pos) - agent.state.p_pos), axis=1))
+            entity_dist_idx = np.argsort(entity_dist)
+            entity_pos = [entity_pos[i] for i in entity_dist_idx[:self.n_visible_landmark]]
+
+            # other_adv_dist = np.sqrt(np.sum(np.square(np.array(other_adv_pos) - agent.state.p_pos), axis=1))
+            # other_adv_idx = np.argsort(other_adv_dist)
+            # other_adv_pos = [other_adv_pos[i] for i in other_adv_idx[:self.n_visible_adv]]
+
+            agent_dist = np.sqrt(np.sum(np.square(np.array(agent_pos) - agent.state.p_pos), axis=1))
+            agent_idx = np.argsort(agent_dist)
+            agent_pos = [agent_pos[i] for i in agent_idx[:self.n_visible_agent+self.n_visible_adv]]
+            # other_pos = other_adv_pos + agent_pos
+            other_pos = agent_pos
+            agent_vel = [agent_vel[i] for i in agent_idx[:self.n_visible_agent+self.n_visible_adv]]
+            return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + agent_vel)
         else:
             # get positions of all entities in this agent's reference frame
             entity_pos = []
@@ -211,17 +224,33 @@ class Scenario(BaseScenario):
             # communication of all other agents
             comm = []
             other_pos = []
-            other_vel = []
+            other_adv_pos = []
+            agent_pos = []
+            agent_vel = []
             for other in world.agents:
                 if other is agent: continue
                 comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
-                
-            #other_pos = sorted(other_pos, key=lambda k: [k[0], k[1]])
-            return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+                #other_pos.append(other.state.p_pos - agent.state.p_pos)
+                # if other.adversary:
+                #     other_adv_pos.append(other.state.p_pos - agent.state.p_pos)
+                # else:
+                agent_pos.append(other.state.p_pos - agent.state.p_pos)
+                agent_vel.append(other.state.p_vel)
+            entity_dist = np.sqrt(np.sum(np.square(np.array(entity_pos) - agent.state.p_pos), axis=1))
+            entity_dist_idx = np.argsort(entity_dist)
+            entity_pos = [entity_pos[i] for i in entity_dist_idx[:self.n_adv_visible_landmark]]
+
+            # other_adv_dist = np.sqrt(np.sum(np.square(np.array(other_adv_pos) - agent.state.p_pos), axis=1))
+            # other_adv_idx = np.argsort(other_adv_dist)
+            # other_adv_pos = [other_adv_pos[i] for i in other_adv_idx[:self.n_adv_visible_adv]]
+
+            agent_dist = np.sqrt(np.sum(np.square(np.array(agent_pos) - agent.state.p_pos), axis=1))
+            agent_idx = np.argsort(agent_dist)
+            agent_pos = [agent_pos[i] for i in agent_idx[:self.n_adv_visible_agent+self.n_adv_visible_adv]]
+            # other_pos = other_adv_pos + agent_pos
+            other_pos = agent_pos
+            agent_vel = [agent_vel[i] for i in agent_idx[:self.n_adv_visible_agent+self.n_adv_visible_adv]]
+            return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + agent_vel)
 
     def seed(self, seed=None):
         self.np_rnd.seed(seed)
