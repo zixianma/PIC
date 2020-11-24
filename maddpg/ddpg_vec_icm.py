@@ -80,34 +80,6 @@ class Flatten(nn.Module):
 def flatten(input):
     return input.view(input.size(0), -1)
 
-class UniverseHead(nn.Module):
-    def __init__(self, hidden_size, num_inputs, num_outputs):
-        super(UniverseHead, self).__init__()
-        self.universeHead = nn.Sequential(
-          nn.Conv1d(num_inputs, 32, 3, padding=1),
-          nn.ELU(),
-          nn.Conv1d(32, 32, 3, padding=1),
-          nn.ELU(),
-          nn.Conv1d(32, 32, 3, padding=1),
-          nn.ELU(),
-          nn.Conv1d(32, 32, 3, padding=1),
-          nn.ELU(),
-          Flatten()
-        )
-
-    def forward(self, state, next_state):
-        phi1, phi2 = self.universeHead(state), self.universeHead(next_state)
-        # phi1, phi2 = F.elu(self.conv1(state)), F.elu(self.conv1(next_state))
-        # phi1, phi2 = F.elu(self.conv2(phi1)), F.elu(self.conv2(phi2))
-        # phi1, phi2 = F.elu(self.conv3(phi1)), F.elu(self.conv3(phi2))
-        # phi1, phi2 = flatten(F.elu(self.conv4(phi1))), flatten(F.elu(self.conv4(phi2)))
-            
-        x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, phi2]), 1)
-        x = self.linear1(x)
-        x = F.relu(x)
-        x = self.linear2(x)
-        return x
-
 class Inverse(nn.Module):
     def __init__(self, hidden_size, num_inputs, num_outputs):
         super(Inverse, self).__init__()
@@ -137,7 +109,7 @@ class Inverse(nn.Module):
         # phi1, phi2 = F.elu(self.conv3(phi1)), F.elu(self.conv3(phi2))
         # phi1, phi2 = flatten(F.elu(self.conv4(phi1))), flatten(F.elu(self.conv4(phi2)))
              
-        x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, phi2]), 1)
+        x = torch.cat(([torch.ones([phi1.shape[0],1],device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")), phi1, phi2]), 1)
         x = self.linear1(x)
         x = F.relu(x)
         x = self.linear2(x)
@@ -162,7 +134,7 @@ class Forward(nn.Module):
 
     def forward(self, inputs, actions, phi1):
         # phi1 = self.universeHead(inputs)
-        x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, actions]), 1)
+        x = torch.cat(([torch.ones([phi1.shape[0],1],device=torch.device("cuda:0" if torch.cuda.is_available() else "cpu")), phi1, actions]), 1)
         x = self.linear1(x)
         x = F.relu(x)
         x = self.linear2(x)

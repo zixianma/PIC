@@ -2,6 +2,7 @@ import sys
 import json
 # local 
 #sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
+# sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
 # server
 sys.path.append('/sailhome/zixianma/PIC/multiagent-particle-envs')
 import argparse
