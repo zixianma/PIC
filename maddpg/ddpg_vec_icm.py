@@ -80,6 +80,34 @@ class Flatten(nn.Module):
 def flatten(input):
     return input.view(input.size(0), -1)
 
+class UniverseHead(nn.Module):
+    def __init__(self, hidden_size, num_inputs, num_outputs):
+        super(UniverseHead, self).__init__()
+        self.universeHead = nn.Sequential(
+          nn.Conv1d(num_inputs, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          nn.Conv1d(32, 32, 3, padding=1),
+          nn.ELU(),
+          Flatten()
+        )
+
+    def forward(self, state, next_state):
+        phi1, phi2 = self.universeHead(state), self.universeHead(next_state)
+        # phi1, phi2 = F.elu(self.conv1(state)), F.elu(self.conv1(next_state))
+        # phi1, phi2 = F.elu(self.conv2(phi1)), F.elu(self.conv2(phi2))
+        # phi1, phi2 = F.elu(self.conv3(phi1)), F.elu(self.conv3(phi2))
+        # phi1, phi2 = flatten(F.elu(self.conv4(phi1))), flatten(F.elu(self.conv4(phi2)))
+            
+        x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, phi2]), 1)
+        x = self.linear1(x)
+        x = F.relu(x)
+        x = self.linear2(x)
+        return x
+
 class Inverse(nn.Module):
     def __init__(self, hidden_size, num_inputs, num_outputs):
         super(Inverse, self).__init__()
@@ -113,27 +141,27 @@ class Inverse(nn.Module):
         x = self.linear1(x)
         x = F.relu(x)
         x = self.linear2(x)
-        return x
+        return x, phi1, phi2
 
 class Forward(nn.Module):
     def __init__(self, hidden_size, num_inputs, num_outputs, num_agents):
         super(Forward, self).__init__()
-        self.universeHead = nn.Sequential(
-          nn.Conv1d(num_inputs, 32, 3, padding=1),
-          nn.ELU(),
-          nn.Conv1d(32, 32, 3, padding=1),
-          nn.ELU(),
-          nn.Conv1d(32, 32, 3, padding=1),
-          nn.ELU(),
-          nn.Conv1d(32, 32, 3, padding=1),
-          nn.ELU(),
-          Flatten()
-        )
+        # self.universeHead = nn.Sequential(
+        #   nn.Conv1d(num_inputs, 32, 3, padding=1),
+        #   nn.ELU(),
+        #   nn.Conv1d(32, 32, 3, padding=1),
+        #   nn.ELU(),
+        #   nn.Conv1d(32, 32, 3, padding=1),
+        #   nn.ELU(),
+        #   nn.Conv1d(32, 32, 3, padding=1),
+        #   nn.ELU(),
+        #   Flatten()
+        # )
         self.linear1 = nn.Linear(32 + num_outputs + 1, hidden_size)
         self.linear2 = nn.Linear(hidden_size, 32)
 
-    def forward(self, inputs, actions):
-        phi1 = self.universeHead(inputs)
+    def forward(self, inputs, actions, phi1):
+        # phi1 = self.universeHead(inputs)
         x = torch.cat(([torch.ones(phi1.shape[0],1), phi1, actions]), 1)
         x = self.linear1(x)
         x = F.relu(x)
@@ -412,18 +440,18 @@ class DDPG(object):
         # print("original action shape:", action_batch_n.shape)
         action_batch_n = action_batch_n.view(-1, self.n_action * self.n_agent)
         # print("updated state shape and action shape", state_batch.shape, action_batch_n.shape)
-        inv_logits = self.inverse(state_batch, next_state_batch)
+        inv_logits, state_phi, next_state_phi = self.inverse(state_batch, next_state_batch)
         # print("input and target sizes:", inv_logits.shape, action_logit.shape)
         inv_loss = F.binary_cross_entropy_with_logits(inv_logits, action_logit)
-        inv_loss.backward()
+        inv_loss.backward(retain_graph=True)
         clip_grad_norm_(self.inverse.parameters(), 0.5)
         self.inverse_optim.step()
         
         self.forward_optim.zero_grad()
-        next_state_phi = self.forward.universeHead(next_state_batch)
+        # next_state_phi = self.forward.universeHead(next_state_batch)
         action_batch_n = action_batch_n.view(-1, self.n_action).detach()
 
-        forward_out = self.forward(state_batch, action_batch_n)
+        forward_out = self.forward(state_batch, action_batch_n, state_phi)
         forward_loss = 0.5 * torch.mean((forward_out - next_state_phi) ** 2)
         forward_loss *= 288.0
         forward_loss.backward()
