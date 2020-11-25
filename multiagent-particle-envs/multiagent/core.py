@@ -212,7 +212,8 @@ class World(object):
     # gather agent action forces
     def apply_action_force(self, p_force):
         # set applied forces
-        for i, agent in enumerate(self.agents):
+        # for i, agent in enumerate(self.agents):
+        for i, agent in enumerate(self.policy_agents):
             if agent.movable:
                 noise = np.random.randn(*agent.action.u.shape) * agent.u_noise if agent.u_noise else 0.0
                 p_force[i] = agent.action.u + noise
