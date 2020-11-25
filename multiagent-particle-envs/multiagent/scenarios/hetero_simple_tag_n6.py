@@ -20,8 +20,8 @@ class Scenario(BaseScenario):
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        self.num_good_agents = 2
-        self.num_adversaries = 6
+        self.num_good_agents = 6
+        self.num_adversaries = 2
         world.num_adversaries = self.num_adversaries
         num_agents = self.num_adversaries + self.num_good_agents
         num_landmarks = 3
@@ -73,7 +73,7 @@ class Scenario(BaseScenario):
 
     @property
     def group(self):
-        self.num_good_agents, self.num_adversaries = 2, 6
+        self.num_good_agents, self.num_adversaries = 6, 2
         return [self.num_adversaries, self.num_good_agents]
     # def benchmark_data(self, agent, world):
     #     # returns data for benchmarking purposes

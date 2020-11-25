@@ -48,7 +48,7 @@ parser.add_argument('--seed', type=int, default=9, metavar='N',
                     help='random seed (default: 4)')
 parser.add_argument('--batch_size', type=int, default=1024, metavar='N',
                     help='batch size (default: 128)')
-parser.add_argument('--num_steps', type=int, default=50, metavar='N',
+parser.add_argument('--num_steps', type=int, default=25, metavar='N',
                     help='max episode length (default: 1000)')
 parser.add_argument('--num_episodes', type=int, default=100000, metavar='N',
                     help='number of episodes (default: 1000)')
@@ -60,9 +60,9 @@ parser.add_argument('--critic_updates_per_step', type=int, default=8, metavar='N
                     help='model updates per simulator step (default: 5)')
 parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
                     help='size of replay buffer (default: 1000000)')
-parser.add_argument('--actor_lr', type=float, default=1e-2,
+parser.add_argument('--actor_lr', type=float, default=1e-4,
                     help='(default: 1e-4)')
-parser.add_argument('--critic_lr', type=float, default=1e-2,
+parser.add_argument('--critic_lr', type=float, default=1e-3,
                     help='(default: 1e-3)')
 parser.add_argument('--fixed_lr', default=False, action='store_true')
 parser.add_argument('--num_eval_runs', type=int, default=1000, help='number of runs per evaluation (default: 5)')

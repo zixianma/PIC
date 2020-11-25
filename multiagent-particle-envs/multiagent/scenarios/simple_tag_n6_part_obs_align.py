@@ -119,8 +119,14 @@ class Scenario(BaseScenario):
             for a in adversaries:
                 if self.is_collision(a, agent):
                     rew -= 10
-                    
+       
+        def dist(a, b):
+            delta_pos = a.state.p_pos - b.state.p_pos
+            dist = np.sqrt(np.sum(np.square(delta_pos)))
+            return dist
+             
         # extra reward for alignment to leader in the group
+        '''
         leader = world.agents[0]
         if agent != leader:
             delta_pos = agent.state.p_pos - leader.state.p_pos
@@ -128,6 +134,10 @@ class Scenario(BaseScenario):
             if dist < world.max_obs_dist:
                 extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
                 rew += extra_rew
+        '''
+        avg_vel = np.mean([other.state.p_vel for other in world.agents if not other.adversary and dist(other, agent) < world.max_obs_dist], axis=0)
+        extra_rew = np.dot(agent.state.p_vel, avg_vel)
+        rew += extra_rew
         return rew
 
         # agents are penalized for exiting the screen, so that they can be caught by the adversaries

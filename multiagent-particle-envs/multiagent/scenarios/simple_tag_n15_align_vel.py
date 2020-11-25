@@ -158,7 +158,7 @@ class Scenario(BaseScenario):
         #     extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
         #     rew += extra_rew
 
-        avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
+        avg_vel = np.mean([agent.state.p_vel for agent in world.agents if not agent.adversary], axis=0)
         extra_rew = np.dot(agent.state.p_vel, avg_vel)
         rew += extra_rew
         return rew

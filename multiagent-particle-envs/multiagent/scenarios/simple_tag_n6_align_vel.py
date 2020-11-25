@@ -20,8 +20,8 @@ class Scenario(BaseScenario):
         self.np_rnd = np.random.RandomState(0)
         # set any world properties first
         world.dim_c = 2
-        num_good_agents = 2
-        num_adversaries = 6
+        num_good_agents = 6
+        num_adversaries = 2
         world.num_adversaries = num_adversaries
         num_agents = num_adversaries + num_good_agents
         num_landmarks = 3
@@ -123,7 +123,7 @@ class Scenario(BaseScenario):
         # if agent != leader:
         #     extra_rew = np.dot(agent.state.p_vel, leader.state.p_vel)
         #     rew += extra_rew
-        avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
+        avg_vel = np.mean([agent.state.p_vel for agent in world.agents if not agent.adversary], axis=0)
         extra_rew = np.dot(agent.state.p_vel, avg_vel)
         rew += extra_rew
 
