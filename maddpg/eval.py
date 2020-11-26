@@ -24,6 +24,9 @@ def eval_model_q(test_q, done_training, args):
     elif 'simple_coop_push' in args.scenario:
         plot = {'good_rewards': [], 'adversary_rewards': [], 'rewards': [], 'collisions': [], 'avg_dists': [], 'occupied_targets': [], 'steps': [], 'q_loss': [], 'gcn_q_loss': [],
             'p_loss': [], 'final': [], 'abs': []}
+    elif 'spread' in args.scenario:
+        plot = {'good_rewards': [], 'adversary_rewards': [], 'rewards': [], 'collisions': [], 'min_dists': [], 'occupied_targets': [], 'steps': [], 'q_loss': [], 'gcn_q_loss': [],
+            'p_loss': [], 'final': [], 'abs': []}
     else:
         plot = {'good_rewards': [], 'adversary_rewards': [], 'rewards': [], 'steps': [], 'q_loss': [], 'gcn_q_loss': [],
             'p_loss': [], 'final': [], 'abs': []}
@@ -35,12 +38,12 @@ def eval_model_q(test_q, done_training, args):
             eval_env.seed(args.seed + 10)
             eval_rewards = []
             good_eval_rewards = []
-            if 'simple_coop_push' in args.scenario:
+            if 'simple_coop_push' in args.scenario or 'spread' in args.scenario:
                 eval_occupied_targets = []
             eval_collisions = []
             eval_dists = []
             agent, tr_log = test_q.get()
-            num_adversaries = eval_env.world.num_adversaries
+            num_adversaries = eval_env.world.num_adversaries if hasattr(eval_env.world, 'num_adversaries') else 0
             with temp_seed(args.seed):
                 for n_eval in range(args.num_eval_runs):
                     obs_n = eval_env.reset()
@@ -50,7 +53,7 @@ def eval_model_q(test_q, done_training, args):
                     agents_rew = [[] for _ in range(n_agents)]
                     if 'simple_tag' in args.scenario:
                         episode_benchmark = [0 for _ in range(2)]
-                    elif 'simple_coop_push' in args.scenario:
+                    elif 'simple_coop_push' in args.scenario or 'spread' in args.scenario:
                         episode_benchmark = [0 for _ in range(3)]
                     while True:
                         action_n = agent.select_action(torch.Tensor(obs_n), action_noise=True,
@@ -63,7 +66,7 @@ def eval_model_q(test_q, done_training, args):
                             episode_benchmark[0] += sum(benchmark_n[:num_adversaries, 0])
                             # min distance for good agents only 
                             episode_benchmark[1] += sum(benchmark_n[num_adversaries:, 1])
-                        elif 'simple_coop_push' in args.scenario:
+                        elif 'simple_coop_push' in args.scenario or 'spread' in args.scenario:
                             for i in range(len(episode_benchmark)):
                                 episode_benchmark[i] += sum(benchmark_n[:, i])
     
@@ -80,7 +83,7 @@ def eval_model_q(test_q, done_training, args):
                             good_eval_rewards.append(good_reward)
                             eval_collisions.append(episode_benchmark[0])
                             eval_dists.append(episode_benchmark[1])
-                            if 'simple_coop_push' in args.scenario:
+                            if 'simple_coop_push' in args.scenario or 'spread' in args.scenario:
                                 eval_occupied_targets.append(episode_benchmark[2])
                             if n_eval % 100 == 0:
                                 print('test reward', episode_reward)
@@ -96,6 +99,10 @@ def eval_model_q(test_q, done_training, args):
                 elif 'simple_coop_push' in args.scenario:
                     plot['collisions'].append(np.mean(eval_collisions))
                     plot['avg_dists'].append(np.mean(eval_dists))
+                    plot['occupied_targets'].append(np.mean(eval_occupied_targets))
+                elif 'spread' in args.scenario:
+                    plot['collisions'].append(np.mean(eval_collisions))
+                    plot['min_dists'].append(np.mean(eval_dists))
                     plot['occupied_targets'].append(np.mean(eval_occupied_targets))
                 plot['steps'].append(tr_log['total_numsteps'])
                 plot['q_loss'].append(tr_log['value_loss'])

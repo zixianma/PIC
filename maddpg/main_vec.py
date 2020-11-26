@@ -1,6 +1,6 @@
 import sys
 import json
-# # local 
+# local 
 # sys.path.append('/Users/zixianma/Desktop/Sophomore/Summer/CURIS/PIC/multiagent-particle-envs')
 # server
 sys.path.append('/sailhome/zixianma/PIC/multiagent-particle-envs')
@@ -114,7 +114,7 @@ env.seed(args.seed)
 random.seed(args.seed)
 np.random.seed(args.seed)
 torch.manual_seed(args.seed)
-num_adversaries = env.world.num_adversaries
+num_adversaries = env.world.num_adversaries if hasattr(env.world, 'num_adversaries') else 0
 # extra_rew = args.extra_rew
 
 n_actions = n_actions(env.action_space)
@@ -187,7 +187,7 @@ for i_episode in range(args.num_episodes):
     agents_rew = [[] for _ in range(n_agents)]
     if 'simple_tag' in args.scenario:
         episode_benchmark = [0 for _ in range(2)]
-    elif 'simple_coop_push' in args.scenario:
+    elif 'simple_coop_push' in args.scenario or  'spread' in args.scenario:
         episode_benchmark = [0 for _ in range(3)]
     while True:
         # action_n_1 = [agent.select_action(torch.Tensor([obs]).to(device), action_noise=True, param_noise=False).squeeze().cpu().numpy() for obs in obs_n]
@@ -213,7 +213,7 @@ for i_episode in range(args.num_episodes):
             episode_benchmark[0] += sum(benchmark_n[:num_adversaries, 0])
             # min distance for good agents only 
             episode_benchmark[1] += sum(benchmark_n[num_adversaries:, 1])
-        elif 'simple_coop_push' in args.scenario:
+        elif 'simple_coop_push' in args.scenario or 'spread' in args.scenario:
             for i in range(len(episode_benchmark)):
                 episode_benchmark[i] += sum(benchmark_n[:, i])
 
@@ -261,16 +261,20 @@ for i_episode in range(args.num_episodes):
     if "simple_tag" in args.scenario:
         writer.add_scalar('collision/train', episode_benchmark[0], i_episode)
         writer.add_scalar('dist/train', episode_benchmark[1], i_episode)
-    elif 'simple_coop_push':
+    elif 'simple_coop_push' in args.scenario:
         writer.add_scalar('collision/train', episode_benchmark[0], i_episode)
         writer.add_scalar('avg_dist/train', episode_benchmark[1], i_episode)
         writer.add_scalar('occupied_target/train', episode_benchmark[2], i_episode)
-    
+    elif 'spread' in args.scenario:
+        writer.add_scalar('collision/train', episode_benchmark[0], i_episode)
+        writer.add_scalar('min_dist/train', episode_benchmark[1], i_episode)
+        writer.add_scalar('occupied_target/train', episode_benchmark[2], i_episode)
+
     rewards.append(episode_reward)
     benchmarks.append(episode_benchmark)
     # if (i_episode + 1) % 1000 == 0 or ((i_episode + 1) >= args.num_episodes - 50 and (i_episode + 1) % 4 == 0):
     if (i_episode + 1) % args.eval_freq == 0:
-        tr_log = {'num_adversary': 0,
+        tr_log = {'num_adversary': num_adversaries,
                   'best_good_eval_reward': best_good_eval_reward,
                   'best_adversary_eval_reward': best_adversary_eval_reward,
                   'exp_save_dir': exp_save_dir, 'total_numsteps': total_numsteps,
