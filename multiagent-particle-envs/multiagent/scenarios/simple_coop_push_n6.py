@@ -98,19 +98,75 @@ class Scenario(BaseScenario):
         dist_min = agent1.size + agent2.size
         return True if dist < dist_min else False
 
+    # def reward(self, agent, world):
+    #     # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
+    #     rew, rew1 = 0, 0
+    #     n_collide, n_collide1 = 0, 0
+    #     if agent == world.agents[0]:
+    #         l, t = world.landmarks[0], world.landmarks[1]
+    #         a_pos = np.array([[a.state.p_pos for a in world.agents]])
+    #         dist = np.sqrt(np.sum(np.square(l.state.p_pos - t.state.p_pos)))
+    #         rew -= 2 * dist
+    #         dist2 = np.sqrt(np.sum(np.square(a_pos - l.state.p_pos), axis=2))
+    #         rew -= 0.1 * np.min(dist2)
+    #         n_collide = (dist2 < self.collide_th).sum()
+    #         rew += 0.1 * n_collide
+    #     return rew
     def reward(self, agent, world):
-        # Agents are rewarded based on minimum agent distance to each landmark, penalized for collisions
-        rew, rew1 = 0, 0
-        n_collide, n_collide1 = 0, 0
-        if agent == world.agents[0]:
-            l, t = world.landmarks[0], world.landmarks[1]
-            a_pos = np.array([[a.state.p_pos for a in world.agents]])
-            dist = np.sqrt(np.sum(np.square(l.state.p_pos - t.state.p_pos)))
-            rew -= 2 * dist
-            dist2 = np.sqrt(np.sum(np.square(a_pos - l.state.p_pos), axis=2))
-            rew -= 0.1 * np.min(dist2)
-            n_collide = (dist2 < self.collide_th).sum()
-            rew += 0.1 * n_collide
+        rew = 0.0
+        num_landmark = int(len(world.landmarks) / 2)
+        shape = True
+        bound_only = False
+        if not bound_only:
+            if shape:
+                dists = [1 / np.sqrt(np.sum(np.square(
+                         agent.state.p_pos - l.state.p_pos)))
+                         for l in world.landmarks[:num_landmark]]
+                rew += max(dists)
+                for l, t in zip(world.landmarks[:num_landmark],
+                                world.landmarks[num_landmark:]):
+                    if agent.collide and self.is_collision(agent, l):
+                        rew += 20
+                    rew -= 10 * np.sqrt(np.sum(np.square(
+                            t.state.p_pos - l.state.p_pos)))
+                    if self.is_collision(l, t):
+                        rew += 200
+            else:
+                for l, t in zip(world.landmarks[:num_landmark],
+                                world.landmarks[num_landmark:]):
+                    dist = np.sqrt(np.sum(np.square(
+                            l.state.p_pos - t.state.p_pos)))
+                    rew -= 10 * dist
+                    if self.is_collision(l, t):
+                        rew += 200
+                    dists = [1 / np.sqrt(np.sum(np.square(
+                             a.state.p_pos - l.state.p_pos)))
+                             for a in world.agents]
+                    rew += max(dists)
+                    for a in world.agents:
+                        if self.is_collision(l, a):
+                            rew += 0.1
+
+        # agents are penalized for exiting the screen
+        def bound(x):
+            if x < 0.9:
+                return 0.0
+            if x < 1.0:
+                return (x - 0.9) * 10
+            # return min(np.exp(2 * x - 2), 10)  # 1 + (x - 1) * (x - 1)
+            # not sure why 2 * (x - 1) is necessary to replacing it with 1 *
+            return min(np.exp(x - 1), 10)
+        for p in range(world.dim_p):
+            x = abs(agent.state.p_pos[p])
+            agent_bound_penalty = bound(x)
+            # rew -= agent_bound_penalty
+
+        if bound_only:
+            dists = [np.sqrt(np.sum(np.square(
+                    agent.state.p_pos - l.state.p_pos)))
+                    for l in world.landmarks[:num_landmark]]
+            rew += 1.0 - min(dists)
+        
         return rew
 
     def observation(self, agent, world):

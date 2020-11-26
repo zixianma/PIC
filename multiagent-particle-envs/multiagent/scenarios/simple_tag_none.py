@@ -147,7 +147,7 @@ class Scenario(BaseScenario):
         avg_vel = np.mean([agent.state.p_vel for agent in world.agents if agent.adversary], axis=0)
         extra_rew = np.dot(agent.state.p_vel, avg_vel)
         rew += extra_rew
-        # agents are penalized for exiting the screen, so that they can be caught by the adversaries
+        # agents are penalized for exiting the screen
         def bound(x):
             if x < 0.9:
                 return 0
