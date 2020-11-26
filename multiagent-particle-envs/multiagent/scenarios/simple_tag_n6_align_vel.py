@@ -140,40 +140,57 @@ class Scenario(BaseScenario):
 
         return rew
 
+    # def adversary_reward(self, agent, world):
+    #     # Adversaries are rewarded for collisions with agents
+    #     rew, rew1 = 0, 0
+    #     n_col, n_collide = 0, 0
+    #     if agent == world.agents[0]:
+    #         agents = self.good_agents(world)
+    #         adversaries = self.adversaries(world)
+
+    #         adv_pos = np.array([[adv.state.p_pos for adv in adversaries]]).repeat(len(agents), axis=0)
+    #         a_pos = np.array([[a.state.p_pos for a in agents]])
+    #         a_pos1 = a_pos.repeat(len(adversaries), axis=0)
+    #         a_pos1 = np.transpose(a_pos1, axes=(1, 0, 2))
+    #         dist = np.sqrt(np.sum(np.square(adv_pos - a_pos1), axis=2))
+    #         rew = np.min(dist, axis=0)
+    #         rew = -0.1 * np.sum(rew)
+    #         if agent.collide:
+    #             n_collide = (dist < self.collide_th).sum()
+    #         rew += 10 * n_collide
+    #         """
+    #         if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
+    #             for adv in adversaries:
+    #                 rew1 -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
+
+    #         if agent.collide:
+    #             n_col = 0
+    #             for ag in agents:
+    #                 for adv in adversaries:
+    #                     if self.is_collision(ag, adv):
+    #                         n_col += 1
+    #                         rew1 += 10
+    #         """
+    #     return rew
+    
     def adversary_reward(self, agent, world):
+
         # Adversaries are rewarded for collisions with agents
-        rew, rew1 = 0, 0
-        n_col, n_collide = 0, 0
-        if agent == world.agents[0]:
-            agents = self.good_agents(world)
-            adversaries = self.adversaries(world)
-
-            adv_pos = np.array([[adv.state.p_pos for adv in adversaries]]).repeat(len(agents), axis=0)
-            a_pos = np.array([[a.state.p_pos for a in agents]])
-            a_pos1 = a_pos.repeat(len(adversaries), axis=0)
-            a_pos1 = np.transpose(a_pos1, axes=(1, 0, 2))
-            dist = np.sqrt(np.sum(np.square(adv_pos - a_pos1), axis=2))
-            rew = np.min(dist, axis=0)
-            rew = -0.1 * np.sum(rew)
-            if agent.collide:
-                n_collide = (dist < self.collide_th).sum()
-            rew += 10 * n_collide
-
-
-
-            """
-            if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
+        rew = 0.0
+        shape = False
+        agents = self.good_agents(world)
+        adversaries = self.adversaries(world)
+        if shape:
+            # reward can optionally be shaped
+            # (decreased reward for increased distance from agents)
+            for adv in adversaries:
+                rew -= 0.1 * min([np.sqrt(np.sum(np.square(
+                    a.state.p_pos - adv.state.p_pos))) for a in agents])
+        if agent.collide:
+            for ag in agents:
                 for adv in adversaries:
-                    rew1 -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
-
-            if agent.collide:
-                n_col = 0
-                for ag in agents:
-                    for adv in adversaries:
-                        if self.is_collision(ag, adv):
-                            n_col += 1
-                            rew1 += 10
-            """
+                    if self.is_collision(ag, adv):
+                        rew += 10
         return rew
 
     def observation(self, agent, world):
