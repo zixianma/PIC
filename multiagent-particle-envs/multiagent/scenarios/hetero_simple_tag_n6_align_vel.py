@@ -147,85 +147,133 @@ class Scenario(BaseScenario):
         avg_vel = np.mean([agent.state.p_vel for agent in world.agents], axis=0)
         extra_rew = np.dot(agent.state.p_vel, avg_vel)
         rew += extra_rew
-
         return rew
 
     def adversary_reward(self, agent, world):
+
         # Adversaries are rewarded for collisions with agents
-        rew, rew1 = 0, 0
-        n_col, n_collide = 0, 0
-        if agent == world.agents[0]:
-            agents = self.good_agents(world)
-            adversaries = self.adversaries(world)
-
-            adv_pos = np.array([[adv.state.p_pos for adv in adversaries]]).repeat(len(agents), axis=0)
-            a_pos = np.array([[a.state.p_pos for a in agents]])
-            a_pos1 = a_pos.repeat(len(adversaries), axis=0)
-            a_pos1 = np.transpose(a_pos1, axes=(1, 0, 2))
-            dist = np.sqrt(np.sum(np.square(adv_pos - a_pos1), axis=2))
-            rew = np.min(dist, axis=0)
-            rew = -0.1 * np.sum(rew)
-            if agent.collide:
-                n_collide = (dist < self.collide_th).sum()
-            rew += 10 * n_collide
-
-
-
-            """
-            if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
+        rew = 0.0
+        shape = False
+        agents = self.good_agents(world)
+        adversaries = self.adversaries(world)
+        if shape:
+            # reward can optionally be shaped
+            # (decreased reward for increased distance from agents)
+            for adv in adversaries:
+                rew -= 0.1 * min([np.sqrt(np.sum(np.square(
+                    a.state.p_pos - adv.state.p_pos))) for a in agents])
+        if agent.collide:
+            for ag in agents:
                 for adv in adversaries:
-                    rew1 -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
-
-            if agent.collide:
-                n_col = 0
-                for ag in agents:
-                    for adv in adversaries:
-                        if self.is_collision(ag, adv):
-                            n_col += 1
-                            rew1 += 10
-            """
+                    if self.is_collision(ag, adv):
+                        rew += 10
         return rew
+    # def adversary_reward(self, agent, world):
+    #     # Adversaries are rewarded for collisions with agents
+    #     rew, rew1 = 0, 0
+    #     n_col, n_collide = 0, 0
+    #     if agent == world.agents[0]:
+    #         agents = self.good_agents(world)
+    #         adversaries = self.adversaries(world)
 
-    def observation(self, agent, world):
-        if not agent.adversary:
-            # get positions of all entities in this agent's reference frame
-            entity_pos = []
-            for entity in world.landmarks:
-                if not entity.boundary:
-                    entity_pos.append(entity.state.p_pos - agent.state.p_pos)
-            # communication of all other agents
-            comm = []
-            other_pos = []
-            other_vel = []
-            for other in world.agents:
-                if other is agent: continue
-                comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
-            return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
-        else:
-            # get positions of all entities in this agent's reference frame
-            entity_pos = []
-            for entity in world.landmarks:
-                if not entity.boundary:
-                    entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+    #         adv_pos = np.array([[adv.state.p_pos for adv in adversaries]]).repeat(len(agents), axis=0)
+    #         a_pos = np.array([[a.state.p_pos for a in agents]])
+    #         a_pos1 = a_pos.repeat(len(adversaries), axis=0)
+    #         a_pos1 = np.transpose(a_pos1, axes=(1, 0, 2))
+    #         dist = np.sqrt(np.sum(np.square(adv_pos - a_pos1), axis=2))
+    #         rew = np.min(dist, axis=0)
+    #         rew = -0.1 * np.sum(rew)
+    #         if agent.collide:
+    #             n_collide = (dist < self.collide_th).sum()
+    #         rew += 10 * n_collide
 
-            # communication of all other agents
-            comm = []
-            other_pos = []
-            other_vel = []
-            for other in world.agents:
-                if other is agent: continue
-                comm.append(other.state.c)
-                other_pos.append(other.state.p_pos - agent.state.p_pos)
-                # if not other.adversary:
-                #     other_vel.append(other.state.p_vel)
-                other_vel.append(other.state.p_vel)
+
+
+    #         """
+    #         if shape:  # reward can optionally be shaped (decreased reward for increased distance from agents)
+    #             for adv in adversaries:
+    #                 rew1 -= 0.1 * min([np.sqrt(np.sum(np.square(a.state.p_pos - adv.state.p_pos))) for a in agents])
+
+    #         if agent.collide:
+    #             n_col = 0
+    #             for ag in agents:
+    #                 for adv in adversaries:
+    #                     if self.is_collision(ag, adv):
+    #                         n_col += 1
+    #                         rew1 += 10
+    #         """
+    #     return rew
+
+    # def observation(self, agent, world):
+    #     if not agent.adversary:
+    #         # get positions of all entities in this agent's reference frame
+    #         entity_pos = []
+    #         for entity in world.landmarks:
+    #             if not entity.boundary:
+    #                 entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+    #         # communication of all other agents
+    #         comm = []
+    #         other_pos = []
+    #         other_vel = []
+    #         for other in world.agents:
+    #             if other is agent: continue
+    #             comm.append(other.state.c)
+    #             other_pos.append(other.state.p_pos - agent.state.p_pos)
+    #             # if not other.adversary:
+    #             #     other_vel.append(other.state.p_vel)
+    #             other_vel.append(other.state.p_vel)
+    #         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+    #     else:
+    #         # get positions of all entities in this agent's reference frame
+    #         entity_pos = []
+    #         for entity in world.landmarks:
+    #             if not entity.boundary:
+    #                 entity_pos.append(entity.state.p_pos - agent.state.p_pos)
+
+    #         # communication of all other agents
+    #         comm = []
+    #         other_pos = []
+    #         other_vel = []
+    #         for other in world.agents:
+    #             if other is agent: continue
+    #             comm.append(other.state.c)
+    #             other_pos.append(other.state.p_pos - agent.state.p_pos)
+    #             # if not other.adversary:
+    #             #     other_vel.append(other.state.p_vel)
+    #             other_vel.append(other.state.p_vel)
                 
-            #other_pos = sorted(other_pos, key=lambda k: [k[0], k[1]])
-            return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+    #         #other_pos = sorted(other_pos, key=lambda k: [k[0], k[1]])
+    #         return np.concatenate([agent.state.p_vel] + [agent.state.p_pos] + entity_pos + other_pos + other_vel)
+    
+    def observation(self, agent, world):
+        # get positions of all entities in this agent's reference frame
+        entity_pos_diff = []
+        for entity in world.landmarks:
+            if not entity.boundary:
+                entity_pos_diff.append(entity.state.p_pos - agent.state.p_pos)
+        # communication of all other agents
+        comm = []
+        other_pos = []
+        other_vel = []
+        other_pos_diff = []
+        other_vel_diff = []
+        for other in world.agents:
+            if other is agent: 
+                continue
+            comm.append(other.state.c)
+            other_pos.append(other.state.p_pos)
+            other_vel.append(other.state.p_vel)
+            other_pos_diff.append(other.state.p_pos - agent.state.p_pos)
+            other_vel_diff.append(other.state.p_vel - agent.state.p_vel)
+        obs = np.concatenate(
+                [agent.state.p_pos] +
+                [agent.state.p_vel] +
+                entity_pos_diff +
+                other_pos +
+                other_pos_diff +
+                other_vel +
+                other_vel_diff)
+        return obs
 
     def seed(self, seed=None):
         self.np_rnd.seed(seed)
